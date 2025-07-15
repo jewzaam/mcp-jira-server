@@ -31,6 +31,9 @@ help: ## Show this help message
 	@printf "$(CYAN)Development and Testing:$(RESET)\n"
 	@printf "  $(GREEN)%-15s$(RESET) %s\n" "test-setup" "Test - Verify installation and show help"
 	@printf "  $(GREEN)%-15s$(RESET) %s\n" "test-connection" "Test - Test JIRA connectivity (requires JIRA_URL, JIRA_USER, JIRA_TOKEN/JIRA_PASS)"
+	@printf "  $(GREEN)%-15s$(RESET) %s\n" "test" "Test - Run all unit tests"
+	@printf "  $(GREEN)%-15s$(RESET) %s\n" "test-client" "Test - Run client module tests only"
+	@printf "  $(GREEN)%-15s$(RESET) %s\n" "test-cli" "Test - Run CLI module tests only"
 	@printf "  $(GREEN)%-15s$(RESET) %s\n" "run-example" "Run - Execute with example parameters (set JIRA_URL, JIRA_USER, JIRA_ISSUE, JIRA_TOKEN)"
 	@printf "  $(GREEN)%-15s$(RESET) %s\n" "lint" "Development - Run code linting (requires flake8)"
 	@printf "\n"
@@ -119,6 +122,28 @@ run-example: setup ## Run - Execute with example parameters (set JIRA_URL, JIRA_
 		exit 1; \
 	fi
 
+# Test targets
+.PHONY: test test-client test-cli test-all test-verbose
+
+test: test-setup test-all  ## Run all unit tests
+	@printf "$(GREEN)All tests completed successfully!$(RESET)\n"
+
+test-client: test-setup  ## Run client module tests
+	@printf "$(YELLOW)Running client tests...$(RESET)\n"
+	$(PYTHON) -m unittest jira_extractor.test_client -v
+
+test-cli: test-setup  ## Run CLI module tests
+	@printf "$(YELLOW)Running CLI tests...$(RESET)\n"
+	$(PYTHON) -m unittest jira_extractor.test_cli -v
+
+test-all: test-setup  ## Run all tests (internal target)
+	@printf "$(YELLOW)Running all unit tests...$(RESET)\n"
+	$(PYTHON) -m unittest jira_extractor.test_client jira_extractor.test_cli -v
+
+test-verbose: test-setup  ## Run tests with maximum verbosity
+	@printf "$(YELLOW)Running all tests with detailed output...$(RESET)\n"
+	$(PYTHON) -m unittest jira_extractor.test_client jira_extractor.test_cli -v 2>&1 | cat
+
 lint: setup ## Development - Run code linting (requires flake8)
 	@printf "$(BLUE)Running code linting...$(RESET)\n"
 	@if ! $(PIP) show flake8 > /dev/null 2>&1; then \
@@ -168,6 +193,22 @@ status: ## Show - Display current project status
 	@printf "\n"
 	@printf "$(CYAN)Project Files:$(RESET)\n"
 	@for file in jira_extractor.py requirements.txt README.md; do \
+		if [ -f "$$file" ]; then \
+			printf "  $(GREEN)✓$(RESET) $$file\n"; \
+		else \
+			printf "  $(RED)✗$(RESET) $$file\n"; \
+		fi \
+	done
+	@printf "$(CYAN)Package Structure:$(RESET)\n"
+	@for file in jira_extractor/__init__.py jira_extractor/client.py jira_extractor/cli.py; do \
+		if [ -f "$$file" ]; then \
+			printf "  $(GREEN)✓$(RESET) $$file\n"; \
+		else \
+			printf "  $(RED)✗$(RESET) $$file\n"; \
+		fi \
+	done
+	@printf "$(CYAN)Test Files:$(RESET)\n"
+	@for file in jira_extractor/test_client.py jira_extractor/test_cli.py; do \
 		if [ -f "$$file" ]; then \
 			printf "  $(GREEN)✓$(RESET) $$file\n"; \
 		else \
