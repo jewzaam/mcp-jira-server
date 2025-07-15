@@ -11,4 +11,4 @@ from .client import JiraClient
 from .cli import main, create_parser, setup_logging, validate_url, write_output
 
 __version__ = "1.0.0"
-__all__ = ["JiraClient", "main", "create_parser", "setup_logging", "validate_url", "write_output"] 
+__all__ = ["JiraClient", "main", "create_parser", "setup_logging", "validate_url", "write_output"]

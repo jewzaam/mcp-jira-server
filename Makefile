@@ -174,7 +174,7 @@ coverage-html: install-requirements-test ## Generate HTML coverage report
 lint: install-requirements-test ## Development - Run code linting
 	@printf "$(BLUE)Running code linting...$(RESET)\n"
 	@printf "$(CYAN)Linting Python files...$(RESET)\n"
-	@$(VENV_DIR)/bin/flake8 jira_extractor.py jira_extractor/ --max-line-length=100 --ignore=E501,W503,W291,W292,W293,E128 --exclude=jira_extractor/test_*.py
+	@$(VENV_DIR)/bin/flake8 jira_extractor.py jira_extractor/ --max-line-length=100 --ignore=E501,W503,W292 --exclude=jira_extractor/test_*.py
 	@printf "$(CYAN)Linting test files...$(RESET)\n"
 	@$(VENV_DIR)/bin/flake8 jira_extractor/test_*.py --max-line-length=120 --ignore=E501,W503,W291,W292,W293,E128
 
