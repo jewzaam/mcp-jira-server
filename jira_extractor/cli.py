@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 from typing import Dict, Any
 import logging
 import getpass
+from datetime import datetime
 
 import requests
 
@@ -46,7 +47,8 @@ def validate_url(url: str) -> str:
     return url
 
 
-def write_output(data: Dict[str, Any], output_path: str, issue_key: str, overwrite: bool = False):
+def write_output(data: Dict[str, Any], output_path: str, issue_key: str, overwrite: bool = False, 
+                 expand: str = None):
     """Write issue data to output destination"""
     json_str = json.dumps(data, indent=2, ensure_ascii=False)
     
@@ -54,18 +56,40 @@ def write_output(data: Dict[str, Any], output_path: str, issue_key: str, overwri
         # Output to stdout
         print(json_str)
     else:
-        # Output to file in directory
+        # Output to directory
         os.makedirs(output_path, exist_ok=True)
         file_path = os.path.join(output_path, f"{issue_key}.json")
+        metadata_path = os.path.join(output_path, f"{issue_key}_metadata.json")
         
-        # Check for existing file
+        # Handle existing file
         if os.path.exists(file_path) and not overwrite:
             raise Exception(f"File {file_path} already exists. Use --overwrite to replace it.")
         
+        # Write main issue file
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(json_str)
         
+        # Generate metadata file
+        metadata = {
+            "extraction_timestamp": datetime.now().isoformat(),
+            "issue_key": issue_key,
+            "expand_parameter": expand,
+            "file_path": file_path,
+            "issue_summary": data.get('fields', {}).get('summary', 'N/A'),
+            "issue_type": data.get('fields', {}).get('issuetype', {}).get('name', 'N/A'),
+            "issue_status": data.get('fields', {}).get('status', {}).get('name', 'N/A'),
+            "relationship_counts": {
+                "subtasks": len(data.get('fields', {}).get('subtasks', [])),
+                "issue_links": len(data.get('fields', {}).get('issuelinks', [])),
+                "comments": data.get('fields', {}).get('comment', {}).get('total', 0)
+            }
+        }
+        
+        with open(metadata_path, 'w', encoding='utf-8') as f:
+            json.dump(metadata, f, indent=2, ensure_ascii=False)
+        
         print(f"Issue {issue_key} saved to {file_path}")
+        print(f"Metadata saved to {metadata_path}")
 
 
 def create_parser():
@@ -171,7 +195,7 @@ def main():
         issue_data = client.get_issue(args.issue, expand=args.expand)
         
         # Write output
-        write_output(issue_data, args.output, args.issue, args.overwrite)
+        write_output(issue_data, args.output, args.issue, args.overwrite, args.expand)
         
         if args.output not in ['-', 'stdout']:
             logging.info("Extraction completed successfully")
@@ -192,5 +216,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     main() 

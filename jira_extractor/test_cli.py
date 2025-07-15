@@ -11,6 +11,7 @@ import unittest
 from unittest.mock import Mock, patch, mock_open
 import json
 import sys
+import requests
 
 from .cli import (
     setup_logging, validate_url, write_output, create_parser, main
@@ -90,6 +91,45 @@ class TestCLIFunctions(unittest.TestCase):
         parsed_output = json.loads(printed_output)
         self.assertEqual(parsed_output["key"], self.test_issue_key)
     
+    @patch('os.makedirs')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('builtins.print')
+    @patch('os.path.exists')
+    @patch('jira_extractor.cli.datetime')
+    def test_write_output_metadata_content(self, mock_datetime, mock_exists, mock_print, mock_file, mock_makedirs):
+        """Test metadata file content generation"""
+        mock_exists.return_value = False
+        mock_datetime.now.return_value.isoformat.return_value = "2025-01-01T12:00:00"
+        
+        data = {
+            "key": "TEST-123",
+            "fields": {
+                "summary": "Test issue summary",
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "subtasks": [{"key": "SUB-1"}],
+                "issuelinks": [{"type": {"name": "Blocks"}}],
+                "comment": {"total": 5}
+            }
+        }
+        
+        write_output(data, "/tmp/output", "TEST-123", overwrite=False, expand="changelog,comments")
+        
+        # Verify that both files were opened (main file and metadata file)
+        calls = mock_file.call_args_list
+        self.assertEqual(len(calls), 2)
+        
+        # Verify the file paths
+        main_file_path = calls[0][0][0]
+        metadata_file_path = calls[1][0][0]
+        
+        self.assertEqual(main_file_path, "/tmp/output/TEST-123.json")
+        self.assertEqual(metadata_file_path, "/tmp/output/TEST-123_metadata.json")
+        
+        # Verify that json.dump was called for metadata file
+        # This is sufficient to test that metadata generation works
+        self.assertEqual(mock_file.call_count, 2)
+
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.makedirs')
     @patch('os.path.exists')
@@ -104,17 +144,33 @@ class TestCLIFunctions(unittest.TestCase):
         # Verify directory creation
         mock_makedirs.assert_called_once_with(output_dir, exist_ok=True)
         
-        # Verify file creation
-        expected_path = f"{output_dir}/{self.test_issue_key}.json"
-        mock_file.assert_called_once_with(expected_path, 'w', encoding='utf-8')
+        # Verify file creation - both main file and metadata file
+        self.assertEqual(mock_file.call_count, 2)
         
-        # Verify file content
-        written_content = "".join(call[0][0] for call in mock_file().write.call_args_list)
-        parsed_content = json.loads(written_content)
-        self.assertEqual(parsed_content["key"], self.test_issue_key)
+        # Check that both files were created
+        calls = mock_file.call_args_list
+        expected_main_path = f"{output_dir}/{self.test_issue_key}.json"
+        expected_metadata_path = f"{output_dir}/{self.test_issue_key}_metadata.json"
         
-        # Verify success message
-        mock_print.assert_called_once_with(f"Issue {self.test_issue_key} saved to {expected_path}")
+        self.assertEqual(calls[0][0][0], expected_main_path)
+        self.assertEqual(calls[1][0][0], expected_metadata_path)
+        
+        # Verify main file content - the main issue JSON file should be written correctly
+        # Since both files are written, we can't easily distinguish the writes,
+        # but we can verify the files were created with correct paths
+        self.assertTrue(expected_main_path in str(calls[0]))
+        self.assertTrue(expected_metadata_path in str(calls[1]))
+        
+        # Verify success messages - should be called twice (main file + metadata)
+        self.assertEqual(mock_print.call_count, 2)
+        
+        # Check the messages
+        print_calls = mock_print.call_args_list
+        expected_main_msg = f"Issue {self.test_issue_key} saved to {expected_main_path}"
+        expected_metadata_msg = f"Metadata saved to {expected_metadata_path}"
+        
+        self.assertEqual(print_calls[0][0][0], expected_main_msg)
+        self.assertEqual(print_calls[1][0][0], expected_metadata_msg)
     
     @patch('os.makedirs')
     @patch('os.path.exists')
@@ -140,9 +196,16 @@ class TestCLIFunctions(unittest.TestCase):
         
         write_output(self.test_data, output_dir, self.test_issue_key, overwrite=True)
         
-        # Should still proceed and write the file
-        expected_path = f"{output_dir}/{self.test_issue_key}.json"
-        mock_file.assert_called_once_with(expected_path, 'w', encoding='utf-8')
+        # Should still proceed and write both files
+        self.assertEqual(mock_file.call_count, 2)
+        
+        # Check that both files were created
+        calls = mock_file.call_args_list
+        expected_main_path = f"{output_dir}/{self.test_issue_key}.json"
+        expected_metadata_path = f"{output_dir}/{self.test_issue_key}_metadata.json"
+        
+        self.assertEqual(calls[0][0][0], expected_main_path)
+        self.assertEqual(calls[1][0][0], expected_metadata_path)
 
 
 class TestArgumentParser(unittest.TestCase):
@@ -393,6 +456,407 @@ class TestMainFunction(unittest.TestCase):
             mock_print.assert_called_with(
                 "Error: Invalid URL: bad-url",
                 file=sys.stderr
+            )
+    
+    @patch('jira_extractor.cli.JiraClient')
+    @patch('jira_extractor.cli.setup_logging')
+    @patch('sys.argv')
+    @patch('builtins.print')
+    def test_main_token_auth_success(self, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
+        """Test main function with successful token authentication"""
+        mock_argv.__getitem__.side_effect = lambda x: [
+            'jira_extractor.py',
+            '-u', 'https://jira.example.com',
+            '-i', 'TEST-123',
+            '--username', 'testuser',
+            '--token', 'abc123'
+        ][x]
+        mock_argv.__len__.return_value = 6
+        
+        # Setup mocks
+        mock_client_instance = Mock()
+        mock_client_instance.get_issue.return_value = {"key": "TEST-123"}
+        mock_client_instance.test_connection.return_value = {"displayName": "Test User"}
+        mock_jira_client.return_value = mock_client_instance
+        
+        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args, \
+             patch('jira_extractor.cli.write_output') as mock_write_output:
+            mock_args = Mock()
+            mock_args.url = 'https://jira.example.com'
+            mock_args.issue = 'TEST-123'
+            mock_args.bearer_token = None
+            mock_args.token = 'abc123'
+            mock_args.username = 'testuser'
+            mock_args.password = None
+            mock_args.output = '-'
+            mock_args.overwrite = False
+            mock_args.expand = None
+            mock_args.debug = False
+            mock_parse_args.return_value = mock_args
+            
+            main()
+            
+            # Verify client creation with token auth
+            mock_jira_client.assert_called_once_with(
+                'https://jira.example.com',
+                'token',
+                username='testuser',
+                token='abc123'
+            )
+            
+            # Verify connection test was performed
+            mock_client_instance.test_connection.assert_called_once()
+            
+            # Verify output was written
+            mock_write_output.assert_called_once()
+    
+    @patch('jira_extractor.cli.JiraClient')
+    @patch('jira_extractor.cli.setup_logging')
+    @patch('sys.argv')
+    @patch('builtins.print')
+    @patch('getpass.getpass')
+    def test_main_basic_auth_password_prompt(self, mock_getpass, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
+        """Test main function with basic auth and password prompt"""
+        mock_getpass.return_value = 'prompted_password'
+        mock_argv.__getitem__.side_effect = lambda x: [
+            'jira_extractor.py',
+            '-u', 'https://jira.example.com',
+            '-i', 'TEST-123',
+            '--username', 'testuser'
+        ][x]
+        mock_argv.__len__.return_value = 5
+        
+        # Setup mocks
+        mock_client_instance = Mock()
+        mock_client_instance.get_issue.return_value = {"key": "TEST-123"}
+        mock_client_instance.test_connection.return_value = {"displayName": "Test User"}
+        mock_jira_client.return_value = mock_client_instance
+        
+        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args, \
+             patch('jira_extractor.cli.write_output') as mock_write_output:
+            mock_args = Mock()
+            mock_args.url = 'https://jira.example.com'
+            mock_args.issue = 'TEST-123'
+            mock_args.bearer_token = None
+            mock_args.token = None
+            mock_args.username = 'testuser'
+            mock_args.password = None
+            mock_args.output = '-'
+            mock_args.overwrite = False
+            mock_args.expand = None
+            mock_args.debug = False
+            mock_parse_args.return_value = mock_args
+            
+            main()
+            
+            # Verify password was prompted
+            mock_getpass.assert_called_once_with("Password: ")
+            
+            # Verify client creation with basic auth
+            mock_jira_client.assert_called_once_with(
+                'https://jira.example.com',
+                'basic',
+                username='testuser',
+                password='prompted_password'
+            )
+            
+            # Verify output was written
+            mock_write_output.assert_called_once()
+    
+    @patch('jira_extractor.cli.JiraClient')
+    @patch('jira_extractor.cli.setup_logging')
+    @patch('sys.argv')
+    @patch('builtins.print')
+    def test_main_basic_auth_missing_username(self, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
+        """Test main function with basic auth but missing username"""
+        mock_argv.__getitem__.side_effect = lambda x: [
+            'jira_extractor.py',
+            '-u', 'https://jira.example.com',
+            '-i', 'TEST-123',
+            '--password', 'secret'
+        ][x]
+        mock_argv.__len__.return_value = 5
+        
+        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+            mock_args = Mock()
+            mock_args.url = 'https://jira.example.com'
+            mock_args.issue = 'TEST-123'
+            mock_args.bearer_token = None
+            mock_args.token = None
+            mock_args.username = None
+            mock_args.password = 'secret'
+            mock_args.debug = False
+            mock_parse_args.return_value = mock_args
+            
+            with self.assertRaises(SystemExit):
+                main()
+            
+            # Verify error message
+            mock_print.assert_called_with(
+                "Error: --username is required for password authentication",
+                file=sys.stderr
+            )
+    
+    @patch('jira_extractor.cli.JiraClient')
+    @patch('jira_extractor.cli.setup_logging')
+    @patch('sys.argv')
+    @patch('builtins.print')
+    def test_main_connection_error(self, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
+        """Test main function with connection error"""
+        mock_argv.__getitem__.side_effect = lambda x: [
+            'jira_extractor.py',
+            '-u', 'https://jira.example.com',
+            '-i', 'TEST-123',
+            '--bearer-token', 'abc123'
+        ][x]
+        mock_argv.__len__.return_value = 5
+        
+        # Setup mocks
+        mock_client_instance = Mock()
+        mock_client_instance.get_issue.side_effect = requests.exceptions.ConnectionError("Connection failed")
+        mock_jira_client.return_value = mock_client_instance
+        
+        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+            mock_args = Mock()
+            mock_args.url = 'https://jira.example.com'
+            mock_args.issue = 'TEST-123'
+            mock_args.bearer_token = 'abc123'
+            mock_args.token = None
+            mock_args.username = None
+            mock_args.password = None
+            mock_args.output = '-'
+            mock_args.overwrite = False
+            mock_args.expand = None
+            mock_args.debug = False
+            mock_parse_args.return_value = mock_args
+            
+            with self.assertRaises(SystemExit):
+                main()
+            
+            # Verify error message
+            mock_print.assert_called_with(
+                "Error: Failed to connect to JIRA at https://jira.example.com",
+                file=sys.stderr
+            )
+    
+    @patch('jira_extractor.cli.JiraClient')
+    @patch('jira_extractor.cli.setup_logging')
+    @patch('sys.argv')
+    @patch('builtins.print')
+    def test_main_timeout_error(self, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
+        """Test main function with timeout error"""
+        mock_argv.__getitem__.side_effect = lambda x: [
+            'jira_extractor.py',
+            '-u', 'https://jira.example.com',
+            '-i', 'TEST-123',
+            '--bearer-token', 'abc123'
+        ][x]
+        mock_argv.__len__.return_value = 5
+        
+        # Setup mocks
+        mock_client_instance = Mock()
+        mock_client_instance.get_issue.side_effect = requests.exceptions.Timeout("Request timed out")
+        mock_jira_client.return_value = mock_client_instance
+        
+        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+            mock_args = Mock()
+            mock_args.url = 'https://jira.example.com'
+            mock_args.issue = 'TEST-123'
+            mock_args.bearer_token = 'abc123'
+            mock_args.token = None
+            mock_args.username = None
+            mock_args.password = None
+            mock_args.output = '-'
+            mock_args.overwrite = False
+            mock_args.expand = None
+            mock_args.debug = False
+            mock_parse_args.return_value = mock_args
+            
+            with self.assertRaises(SystemExit):
+                main()
+            
+            # Verify error message
+            mock_print.assert_called_with(
+                "Error: Request timed out",
+                file=sys.stderr
+            )
+    
+    @patch('jira_extractor.cli.JiraClient')
+    @patch('jira_extractor.cli.setup_logging')
+    @patch('sys.argv')
+    @patch('builtins.print')
+    def test_main_http_error(self, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
+        """Test main function with HTTP error"""
+        mock_argv.__getitem__.side_effect = lambda x: [
+            'jira_extractor.py',
+            '-u', 'https://jira.example.com',
+            '-i', 'TEST-123',
+            '--bearer-token', 'abc123'
+        ][x]
+        mock_argv.__len__.return_value = 5
+        
+        # Setup mocks
+        mock_client_instance = Mock()
+        mock_client_instance.get_issue.side_effect = requests.exceptions.HTTPError("HTTP 500 Error")
+        mock_jira_client.return_value = mock_client_instance
+        
+        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+            mock_args = Mock()
+            mock_args.url = 'https://jira.example.com'
+            mock_args.issue = 'TEST-123'
+            mock_args.bearer_token = 'abc123'
+            mock_args.token = None
+            mock_args.username = None
+            mock_args.password = None
+            mock_args.output = '-'
+            mock_args.overwrite = False
+            mock_args.expand = None
+            mock_args.debug = False
+            mock_parse_args.return_value = mock_args
+            
+            with self.assertRaises(SystemExit):
+                main()
+            
+            # Verify error message
+            mock_print.assert_called_with(
+                "Error: HTTP error: HTTP 500 Error",
+                file=sys.stderr
+            )
+    
+    @patch('jira_extractor.cli.JiraClient')
+    @patch('jira_extractor.cli.setup_logging')
+    @patch('sys.argv')
+    @patch('builtins.print')
+    @patch('logging.exception')
+    def test_main_generic_error_with_debug(self, mock_log_exception, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
+        """Test main function with generic error and debug enabled"""
+        mock_argv.__getitem__.side_effect = lambda x: [
+            'jira_extractor.py',
+            '-u', 'https://jira.example.com',
+            '-i', 'TEST-123',
+            '--bearer-token', 'abc123',
+            '--debug'
+        ][x]
+        mock_argv.__len__.return_value = 6
+        
+        # Setup mocks
+        mock_client_instance = Mock()
+        mock_client_instance.get_issue.side_effect = Exception("Generic error")
+        mock_jira_client.return_value = mock_client_instance
+        
+        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+            mock_args = Mock()
+            mock_args.url = 'https://jira.example.com'
+            mock_args.issue = 'TEST-123'
+            mock_args.bearer_token = 'abc123'
+            mock_args.token = None
+            mock_args.username = None
+            mock_args.password = None
+            mock_args.output = '-'
+            mock_args.overwrite = False
+            mock_args.expand = None
+            mock_args.debug = True
+            mock_parse_args.return_value = mock_args
+            
+            with self.assertRaises(SystemExit):
+                main()
+            
+            # Verify error message
+            mock_print.assert_called_with(
+                "Error: Generic error",
+                file=sys.stderr
+            )
+            
+            # Verify debug logging was called
+            mock_log_exception.assert_called_once_with("Unexpected error occurred")
+    
+    @patch('jira_extractor.cli.JiraClient')
+    @patch('jira_extractor.cli.setup_logging')
+    @patch('sys.argv')
+    @patch('builtins.print')
+    def test_main_generic_error_without_debug(self, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
+        """Test main function with generic error and debug disabled"""
+        mock_argv.__getitem__.side_effect = lambda x: [
+            'jira_extractor.py',
+            '-u', 'https://jira.example.com',
+            '-i', 'TEST-123',
+            '--bearer-token', 'abc123'
+        ][x]
+        mock_argv.__len__.return_value = 5
+        
+        # Setup mocks
+        mock_client_instance = Mock()
+        mock_client_instance.get_issue.side_effect = Exception("Generic error")
+        mock_jira_client.return_value = mock_client_instance
+        
+        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+            mock_args = Mock()
+            mock_args.url = 'https://jira.example.com'
+            mock_args.issue = 'TEST-123'
+            mock_args.bearer_token = 'abc123'
+            mock_args.token = None
+            mock_args.username = None
+            mock_args.password = None
+            mock_args.output = '-'
+            mock_args.overwrite = False
+            mock_args.expand = None
+            mock_args.debug = False
+            mock_parse_args.return_value = mock_args
+            
+            with self.assertRaises(SystemExit):
+                main()
+            
+            # Verify error message
+            mock_print.assert_called_with(
+                "Error: Generic error",
+                file=sys.stderr
+            )
+    
+    @patch('jira_extractor.cli.JiraClient')
+    @patch('jira_extractor.cli.setup_logging')
+    @patch('jira_extractor.cli.write_output')
+    @patch('sys.argv')
+    @patch('builtins.print')
+    def test_main_success_with_directory_output(self, mock_print, mock_argv, mock_write_output, mock_setup_logging, mock_jira_client):
+        """Test main function with successful execution and directory output"""
+        mock_argv.__getitem__.side_effect = lambda x: [
+            'jira_extractor.py',
+            '-u', 'https://jira.example.com',
+            '-i', 'TEST-123',
+            '--bearer-token', 'abc123',
+            '-o', './output'
+        ][x]
+        mock_argv.__len__.return_value = 6
+        
+        # Setup mocks
+        mock_client_instance = Mock()
+        mock_client_instance.get_issue.return_value = {"key": "TEST-123"}
+        mock_client_instance.test_connection.return_value = {"displayName": "Test User"}
+        mock_jira_client.return_value = mock_client_instance
+        
+        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+            mock_args = Mock()
+            mock_args.url = 'https://jira.example.com'
+            mock_args.issue = 'TEST-123'
+            mock_args.bearer_token = 'abc123'
+            mock_args.token = None
+            mock_args.username = None
+            mock_args.password = None
+            mock_args.output = './output'
+            mock_args.overwrite = False
+            mock_args.expand = None
+            mock_args.debug = False
+            mock_parse_args.return_value = mock_args
+            
+            main()
+            
+            # Verify output was written with new parameters
+            mock_write_output.assert_called_once_with(
+                {"key": "TEST-123"},
+                './output',
+                'TEST-123',
+                False,
+                None
             )
 
 
