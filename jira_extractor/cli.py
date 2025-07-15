@@ -25,8 +25,8 @@ from .client import JiraClient
 def setup_logging(debug: bool = False):
     """Setup logging configuration"""
     level = logging.DEBUG if debug else logging.INFO
-    format_str = '%(asctime)s - %(levelname)s: %(message)s' if debug else '%(levelname)s: %(message)s'
-    
+    format_str = ('%(asctime)s - %(levelname)s: %(message)s' if debug else '%(levelname)s: %(message)s')
+
     logging.basicConfig(
         level=level,
         format=format_str,
@@ -40,18 +40,18 @@ def validate_url(url: str) -> str:
     if not parsed.scheme:
         url = f"https://{url}"
         parsed = urlparse(url)
-    
+
     if not parsed.netloc:
         raise ValueError(f"Invalid URL: {url}")
-    
+
     return url
 
 
-def write_output(data: Dict[str, Any], output_path: str, issue_key: str, overwrite: bool = False, 
+def write_output(data: Dict[str, Any], output_path: str, issue_key: str, overwrite: bool = False,
                  expand: str = None):
     """Write issue data to output destination"""
     json_str = json.dumps(data, indent=2, ensure_ascii=False)
-    
+
     if output_path in ['-', 'stdout']:
         # Output to stdout
         print(json_str)
@@ -60,15 +60,15 @@ def write_output(data: Dict[str, Any], output_path: str, issue_key: str, overwri
         os.makedirs(output_path, exist_ok=True)
         file_path = os.path.join(output_path, f"{issue_key}.json")
         metadata_path = os.path.join(output_path, f"{issue_key}_metadata.json")
-        
+
         # Handle existing file
         if os.path.exists(file_path) and not overwrite:
             raise Exception(f"File {file_path} already exists. Use --overwrite to replace it.")
-        
+
         # Write main issue file
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(json_str)
-        
+
         # Generate metadata file
         metadata = {
             "extraction_timestamp": datetime.now().isoformat(),
@@ -84,10 +84,10 @@ def write_output(data: Dict[str, Any], output_path: str, issue_key: str, overwri
                 "comments": data.get('fields', {}).get('comment', {}).get('total', 0)
             }
         }
-        
+
         with open(metadata_path, 'w', encoding='utf-8') as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False)
-        
+
         print(f"Issue {issue_key} saved to {file_path}")
         print(f"Metadata saved to {metadata_path}")
 
@@ -105,34 +105,32 @@ Examples:
   %(prog)s -u https://issues.redhat.com -i RFE-7877 --username $USER -o ./output --bearer-token abc123
         """
     )
-    
+
     # Required arguments
-    parser.add_argument('-u', '--url', required=True, 
-                       help='JIRA instance URL')
+    parser.add_argument('-u', '--url', required=True,
+                        help='JIRA instance URL')
     parser.add_argument('-i', '--issue', required=True,
-                       help='JIRA issue key (e.g., RFE-7877)')
-    parser.add_argument('--username', 
-                       help='JIRA username (required for --token and --password auth)')
-    
+                        help='JIRA issue key (e.g., RFE-7877)')
+    parser.add_argument('--username', help='JIRA username (required for --token and --password auth)')
+
     # Output options
     parser.add_argument('-o', '--output', default='-',
-                       help='Output directory or "-" for stdout (default: stdout)')
-    parser.add_argument('--overwrite', action='store_true',
-                       help='Overwrite existing files')
-    
+                        help='Output directory or "-" for stdout (default: stdout)')
+    parser.add_argument('--overwrite', action='store_true', help='Overwrite existing files')
+
     # Authentication options
     auth_group = parser.add_argument_group('Authentication')
     auth_group.add_argument('--password', help='JIRA password (will prompt if not provided)')
     auth_group.add_argument('--token', help='API token for Basic Auth (requires --username)')
     auth_group.add_argument('--bearer-token', help='Personal Access Token for Bearer Auth')
-    
+
     # Field control options
     field_group = parser.add_argument_group('Field Control')
     field_group.add_argument('--expand', help='Comma-separated fields to expand (e.g., changelog,comments)')
-    
+
     # Debug options
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
-    
+
     return parser
 
 
@@ -140,17 +138,17 @@ def main():
     """Main entry point"""
     parser = create_parser()
     args = parser.parse_args()
-    
+
     # Setup logging
     setup_logging(args.debug)
-    
+
     # Validate inputs
     try:
         url = validate_url(args.url)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
-    
+
     # Auto-detect authentication method and validate required arguments
     if args.bearer_token:
         # Bearer token authentication (Personal Access Token)
@@ -177,11 +175,11 @@ def main():
         # No authentication (for public issues)
         auth_method = None
         auth_kwargs = {}
-    
+
     try:
         # Initialize JIRA client
         client = JiraClient(url, auth_method, **auth_kwargs)
-        
+
         # Test connection (skip for unauthenticated access)
         if auth_method is not None:
             logging.info("Testing JIRA connection...")
@@ -189,17 +187,17 @@ def main():
             logging.info(f"Connected as: {user_info.get('displayName', args.username)}")
         else:
             logging.info("Attempting unauthenticated access to public issue...")
-        
+
         # Fetch issue
         logging.info(f"Fetching issue: {args.issue}")
         issue_data = client.get_issue(args.issue, expand=args.expand)
-        
+
         # Write output
         write_output(issue_data, args.output, args.issue, args.overwrite, args.expand)
-        
+
         if args.output not in ['-', 'stdout']:
             logging.info("Extraction completed successfully")
-    
+
     except requests.exceptions.ConnectionError:
         print(f"Error: Failed to connect to JIRA at {url}", file=sys.stderr)
         sys.exit(1)
@@ -217,4 +215,4 @@ def main():
 
 
 if __name__ == '__main__':  # pragma: no cover
-    main() 
+    main()

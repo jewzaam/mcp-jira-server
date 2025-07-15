@@ -17,11 +17,11 @@ from requests.auth import HTTPBasicAuth
 
 class JiraClient:
     """Client for interacting with JIRA REST API"""
-    
+
     def __init__(self, base_url: str, auth_method: Optional[str] = "basic", **auth_kwargs):
         """
         Initialize JIRA client
-        
+
         Args:
             base_url: JIRA instance URL
             auth_method: Authentication method ('basic', 'token', 'bearer')
@@ -30,16 +30,16 @@ class JiraClient:
         self.base_url = base_url.rstrip('/')
         self.api_base = urljoin(self.base_url + '/', 'rest/api/2/')
         self.session = requests.Session()
-        
+
         # Set up authentication
         self._setup_auth(auth_method, **auth_kwargs)
-        
+
         # Set common headers
         self.session.headers.update({
             'Content-Type': 'application/json',
             'Accept': 'application/json'
         })
-    
+
     def _setup_auth(self, auth_method: Optional[str] = None, **auth_kwargs):
         """Setup authentication for the session"""
         if auth_method == "basic":
@@ -48,7 +48,7 @@ class JiraClient:
             if not username or not password:
                 raise ValueError("Basic auth requires username and password")
             self.session.auth = HTTPBasicAuth(username, password)
-        
+
         elif auth_method == "token":
             username = auth_kwargs.get('username')
             token = auth_kwargs.get('token')
@@ -56,32 +56,32 @@ class JiraClient:
                 raise ValueError("Token auth requires username and token")
             # For API token, use token as password with basic auth
             self.session.auth = HTTPBasicAuth(username, token)
-        
+
         elif auth_method == "bearer":
             token = auth_kwargs.get('token')
             if not token:
                 raise ValueError("Bearer auth requires token")
             # For Bearer token (Personal Access Token), use Authorization header
             self.session.headers.update({'Authorization': f'Bearer {token}'})
-        
+
         elif auth_method is None:
             # No authentication - for public issues
             pass
-        
+
         else:
             raise ValueError(f"Unsupported auth method: {auth_method}")
-    
+
     def get_issue(self, issue_key: str, expand: Optional[str] = None) -> Dict[str, Any]:
         """
         Fetch a single JIRA issue
-        
+
         Args:
             issue_key: JIRA issue key (e.g., 'RFE-7877')
             expand: Comma-separated list of fields to expand
-            
+
         Returns:
             Issue data as dictionary
-            
+
         Raises:
             requests.HTTPError: If API request fails
         """
@@ -89,37 +89,37 @@ class JiraClient:
         params = {}
         if expand:
             params['expand'] = expand
-        
+
         logging.debug(f"Fetching issue from: {url}")
         if params:
             logging.debug(f"Query parameters: {params}")
-        
+
         response = self.session.get(url, params=params)
-        
+
         # Log response details for debugging
         logging.debug(f"Response status: {response.status_code}")
         logging.debug(f"Response headers: {dict(response.headers)}")
-        
+
         if response.status_code == 401:
             raise Exception("Authentication failed. Please check your credentials.")
         elif response.status_code == 403:
             raise Exception(f"Access denied to issue {issue_key}. Check permissions.")
         elif response.status_code == 404:
             raise Exception(f"Issue {issue_key} not found.")
-        
+
         response.raise_for_status()
-        
+
         return response.json()
-    
+
     def test_connection(self) -> Dict[str, Any]:
         """Test JIRA connection and authentication"""
         url = urljoin(self.api_base, 'myself')
         logging.debug(f"Testing connection to: {url}")
-        
+
         response = self.session.get(url)
-        
+
         if response.status_code == 401:
             raise Exception("Authentication failed. Please check your credentials.")
-        
+
         response.raise_for_status()
-        return response.json() 
+        return response.json()
