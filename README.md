@@ -1,5 +1,7 @@
 # JIRA Extractor
 
+![PR Check](https://github.com/jewzaam/jira-extractor/workflows/PR%20Check/badge.svg)
+
 A command-line tool for extracting JIRA issues and related issues with configurable export options and relationship traversal.
 
 ## Setup
