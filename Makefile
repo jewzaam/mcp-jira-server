@@ -25,28 +25,14 @@ help: ## Show this help message
 	@printf "$(WHITE)JIRA Extractor - Available Commands$(RESET)\n"
 	@printf "$(PURPLE)=======================================$(RESET)\n"
 	@printf "\n"
-	@printf "$(CYAN)Setup and Installation:$(RESET)\n"
-	@printf "  $(GREEN)%-15s$(RESET) %s\n" "setup" "Setup - Create virtual environment and install dependencies"
-	@printf "\n"
-	@printf "$(CYAN)Development and Testing:$(RESET)\n"
-	@printf "  $(GREEN)%-15s$(RESET) %s\n" "test-setup" "Test - Verify installation and show help"
-	@printf "  $(GREEN)%-15s$(RESET) %s\n" "test-connection" "Test - Test JIRA connectivity (requires JIRA_URL, JIRA_USER, JIRA_TOKEN/JIRA_PASS)"
-	@printf "  $(GREEN)%-15s$(RESET) %s\n" "test" "Test - Run all unit tests"
-	@printf "  $(GREEN)%-15s$(RESET) %s\n" "test-client" "Test - Run client module tests only"
-	@printf "  $(GREEN)%-15s$(RESET) %s\n" "test-cli" "Test - Run CLI module tests only"
-	@printf "  $(GREEN)%-15s$(RESET) %s\n" "run-example" "Run - Execute with example parameters (set JIRA_URL, JIRA_USER, JIRA_ISSUE, JIRA_TOKEN)"
-	@printf "  $(GREEN)%-15s$(RESET) %s\n" "lint" "Development - Run code linting (requires flake8)"
-	@printf "\n"
-	@printf "$(CYAN)Maintenance:$(RESET)\n"
-	@printf "  $(GREEN)%-15s$(RESET) %s\n" "clean" "Maintenance - Remove virtual environment and cache files"
-	@printf "  $(GREEN)%-15s$(RESET) %s\n" "clean-cache" "Maintenance - Remove only cache files (keep venv)"
-	@printf "\n"
-	@printf "$(CYAN)Utility:$(RESET)\n"
-	@printf "  $(GREEN)%-15s$(RESET) %s\n" "help" "Show this help message"
-	@printf "  $(GREEN)%-15s$(RESET) %s\n" "status" "Show - Display current project status"
+	@awk 'BEGIN {FS = ":.*##"; printf "$(CYAN)Available Targets:$(RESET)\n"} \
+		/^[a-zA-Z_][a-zA-Z0-9_-]*:.*##/ { \
+			printf "  $(GREEN)%-15s$(RESET) %s\n", $$1, $$2 \
+		}' $(MAKEFILE_LIST)
 	@printf "\n"
 	@printf "$(YELLOW)Examples:$(RESET)\n"
 	@printf "  make setup                 # Initial project setup\n"
+	@printf "  make test                  # Run all tests with linting\n"
 	@printf "  make test-connection       # Test JIRA connectivity\n"
 	@printf "  make run-example           # Run with example parameters\n"
 	@printf "\n"
@@ -123,16 +109,16 @@ run-example: setup ## Run - Execute with example parameters (set JIRA_URL, JIRA_
 	fi
 
 # Test targets
-.PHONY: test test-client test-cli test-all test-verbose
+.PHONY: test test-client test-cli test-all test-verbose test-no-lint
 
-test: test-setup test-all  ## Run all unit tests
-	@printf "$(GREEN)All tests completed successfully!$(RESET)\n"
+test: test-setup lint test-all  ## Run all unit tests with linting
+	@printf "$(GREEN)All tests and linting completed successfully!$(RESET)\n"
 
-test-client: test-setup  ## Run client module tests
+test-client: test-setup lint  ## Run client module tests with linting
 	@printf "$(YELLOW)Running client tests...$(RESET)\n"
 	$(PYTHON) -m unittest jira_extractor.test_client -v
 
-test-cli: test-setup  ## Run CLI module tests
+test-cli: test-setup lint  ## Run CLI module tests with linting
 	@printf "$(YELLOW)Running CLI tests...$(RESET)\n"
 	$(PYTHON) -m unittest jira_extractor.test_cli -v
 
@@ -140,9 +126,12 @@ test-all: test-setup  ## Run all tests (internal target)
 	@printf "$(YELLOW)Running all unit tests...$(RESET)\n"
 	$(PYTHON) -m unittest jira_extractor.test_client jira_extractor.test_cli -v
 
-test-verbose: test-setup  ## Run tests with maximum verbosity
+test-verbose: test-setup lint  ## Run tests with maximum verbosity and linting
 	@printf "$(YELLOW)Running all tests with detailed output...$(RESET)\n"
 	$(PYTHON) -m unittest jira_extractor.test_client jira_extractor.test_cli -v 2>&1 | cat
+
+test-no-lint: test-setup test-all  ## Run all unit tests without linting
+	@printf "$(GREEN)All tests completed successfully (no linting)!$(RESET)\n"
 
 lint: setup ## Development - Run code linting (requires flake8)
 	@printf "$(BLUE)Running code linting...$(RESET)\n"
@@ -150,7 +139,10 @@ lint: setup ## Development - Run code linting (requires flake8)
 		printf "$(YELLOW)Installing flake8...$(RESET)\n"; \
 		$(PIP) install flake8; \
 	fi
-	@$(VENV_DIR)/bin/flake8 jira_extractor.py --max-line-length=100 --ignore=E501,W503
+	@printf "$(CYAN)Linting Python files...$(RESET)\n"
+	@$(VENV_DIR)/bin/flake8 jira_extractor.py jira_extractor/ --max-line-length=100 --ignore=E501,W503,W291,W292,W293,E128 --exclude=jira_extractor/test_*.py
+	@printf "$(CYAN)Linting test files...$(RESET)\n"
+	@$(VENV_DIR)/bin/flake8 jira_extractor/test_*.py --max-line-length=120 --ignore=E501,W503,W291,W292,W293,E128
 
 clean: clean-cache ## Maintenance - Remove virtual environment and cache files
 	@printf "$(BLUE)Cleaning up JIRA Extractor...$(RESET)\n"

@@ -8,13 +8,9 @@ This program is licensed under GPL-3.0-or-later
 """
 
 import unittest
-from unittest.mock import Mock, patch, mock_open, MagicMock
-import argparse
+from unittest.mock import Mock, patch, mock_open
 import json
-import os
-import tempfile
 import sys
-from io import StringIO
 
 from .cli import (
     setup_logging, validate_url, write_output, create_parser, main
@@ -372,6 +368,9 @@ class TestMainFunction(unittest.TestCase):
             
             # Verify no connection test was performed
             mock_client_instance.test_connection.assert_not_called()
+            
+            # Verify output was written
+            mock_write_output.assert_called_once()
     
     @patch('jira_extractor.cli.validate_url')
     @patch('jira_extractor.cli.setup_logging')

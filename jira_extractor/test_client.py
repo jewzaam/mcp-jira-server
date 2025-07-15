@@ -8,7 +8,7 @@ This program is licensed under GPL-3.0-or-later
 """
 
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import requests
 from requests.auth import HTTPBasicAuth
 
