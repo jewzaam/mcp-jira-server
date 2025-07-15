@@ -2,14 +2,15 @@
 # Makefile for JIRA Extractor
 # Copyright (C) 2025 Naveen Z. Malik
 
-.PHONY: help setup clean clean-cache test-setup test-connection lint run-example status
-.DEFAULT_GOAL := help
+.PHONY: help setup clean clean-cache test-setup test-connection lint run-example status default install-requirements-test coverage coverage-unit coverage-html
+.DEFAULT_GOAL := default
 
 # Variables
 VENV_DIR = venv
 PYTHON = $(VENV_DIR)/bin/python
 PIP = $(VENV_DIR)/bin/pip
 REQUIREMENTS = requirements.txt
+REQUIREMENTS_TEST = requirements-test.txt
 
 # Colors for output
 CYAN := \033[36m
@@ -21,6 +22,14 @@ PURPLE := \033[35m
 WHITE := \033[37m
 RESET := \033[0m
 
+default: test coverage ## Run all tests and generate coverage report
+	@printf "$(GREEN)Default target completed: tests and coverage generated!$(RESET)\n"
+
+install-requirements-test: setup ## Install test requirements including coverage
+	@printf "$(BLUE)Installing test dependencies...$(RESET)\n"
+	@$(PIP) install -r $(REQUIREMENTS_TEST)
+	@printf "$(GREEN)Test dependencies installed successfully!$(RESET)\n"
+
 help: ## Show this help message
 	@printf "$(WHITE)JIRA Extractor - Available Commands$(RESET)\n"
 	@printf "$(PURPLE)=======================================$(RESET)\n"
@@ -31,8 +40,11 @@ help: ## Show this help message
 		}' $(MAKEFILE_LIST)
 	@printf "\n"
 	@printf "$(YELLOW)Examples:$(RESET)\n"
+	@printf "  make default               # Run tests and coverage (default)\n"
 	@printf "  make setup                 # Initial project setup\n"
 	@printf "  make test                  # Run all tests with linting\n"
+	@printf "  make coverage              # Run tests with coverage report\n"
+	@printf "  make coverage-html         # Generate HTML coverage report\n"
 	@printf "  make test-connection       # Test JIRA connectivity\n"
 	@printf "  make run-example           # Run with example parameters\n"
 	@printf "\n"
@@ -133,12 +145,34 @@ test-verbose: test-setup lint  ## Run tests with maximum verbosity and linting
 test-no-lint: test-setup test-all  ## Run all unit tests without linting
 	@printf "$(GREEN)All tests completed successfully (no linting)!$(RESET)\n"
 
-lint: setup ## Development - Run code linting (requires flake8)
+# Coverage targets
+.PHONY: coverage coverage-unit coverage-html
+
+coverage: install-requirements-test ## Run tests with coverage and generate reports
+	@printf "$(BLUE)Running tests with coverage...$(RESET)\n"
+	@$(VENV_DIR)/bin/coverage run --source=jira_extractor --omit="jira_extractor/test_*.py" -m unittest jira_extractor.test_client jira_extractor.test_cli -v
+	@printf "$(YELLOW)Generating coverage report...$(RESET)\n"
+	@$(VENV_DIR)/bin/coverage report -m
+	@$(VENV_DIR)/bin/coverage xml
+	@printf "$(GREEN)Coverage analysis completed!$(RESET)\n"
+
+coverage-unit: install-requirements-test ## Run coverage on unit tests only
+	@printf "$(BLUE)Running unit tests with coverage...$(RESET)\n"
+	@$(VENV_DIR)/bin/coverage run --source=jira_extractor --omit="jira_extractor/test_*.py" -m unittest jira_extractor.test_client jira_extractor.test_cli -v
+	@printf "$(YELLOW)Generating coverage report...$(RESET)\n"
+	@$(VENV_DIR)/bin/coverage report -m
+	@$(VENV_DIR)/bin/coverage xml
+	@printf "$(GREEN)Unit test coverage completed!$(RESET)\n"
+
+coverage-html: install-requirements-test ## Generate HTML coverage report
+	@printf "$(BLUE)Running tests with coverage and generating HTML report...$(RESET)\n"
+	@$(VENV_DIR)/bin/coverage run --source=jira_extractor --omit="jira_extractor/test_*.py" -m unittest jira_extractor.test_client jira_extractor.test_cli -v
+	@$(VENV_DIR)/bin/coverage html
+	@printf "$(GREEN)HTML coverage report generated in htmlcov/ directory$(RESET)\n"
+	@printf "$(CYAN)Open htmlcov/index.html in your browser to view the report$(RESET)\n"
+
+lint: install-requirements-test ## Development - Run code linting
 	@printf "$(BLUE)Running code linting...$(RESET)\n"
-	@if ! $(PIP) show flake8 > /dev/null 2>&1; then \
-		printf "$(YELLOW)Installing flake8...$(RESET)\n"; \
-		$(PIP) install flake8; \
-	fi
 	@printf "$(CYAN)Linting Python files...$(RESET)\n"
 	@$(VENV_DIR)/bin/flake8 jira_extractor.py jira_extractor/ --max-line-length=100 --ignore=E501,W503,W291,W292,W293,E128 --exclude=jira_extractor/test_*.py
 	@printf "$(CYAN)Linting test files...$(RESET)\n"
@@ -155,6 +189,9 @@ clean-cache: ## Maintenance - Remove only cache files (keep venv)
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	@find . -type f -name "*.pyo" -delete 2>/dev/null || true
+	@printf "$(BLUE)Cleaning coverage files...$(RESET)\n"
+	@rm -rf htmlcov/ 2>/dev/null || true
+	@rm -f .coverage coverage.xml 2>/dev/null || true
 	@printf "$(GREEN)Cache cleanup completed!$(RESET)\n"
 
 status: ## Show - Display current project status
@@ -206,4 +243,20 @@ status: ## Show - Display current project status
 		else \
 			printf "  $(RED)✗$(RESET) $$file\n"; \
 		fi \
-	done 
+	done
+	@printf "$(CYAN)Coverage Files:$(RESET)\n"
+	@if [ -f ".coverage" ]; then \
+		printf "  $(GREEN)✓$(RESET) .coverage (coverage data)\n"; \
+	else \
+		printf "  $(YELLOW)-$(RESET) .coverage (run 'make coverage' to generate)\n"; \
+	fi
+	@if [ -f "coverage.xml" ]; then \
+		printf "  $(GREEN)✓$(RESET) coverage.xml (XML report)\n"; \
+	else \
+		printf "  $(YELLOW)-$(RESET) coverage.xml (run 'make coverage' to generate)\n"; \
+	fi
+	@if [ -d "htmlcov" ]; then \
+		printf "  $(GREEN)✓$(RESET) htmlcov/ (HTML report)\n"; \
+	else \
+		printf "  $(YELLOW)-$(RESET) htmlcov/ (run 'make coverage-html' to generate)\n"; \
+	fi 

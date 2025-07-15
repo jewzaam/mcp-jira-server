@@ -92,7 +92,7 @@ A command-line tool for extracting JIRA issues and related issues with configura
 - **Directory Output**: Save extracted data to specified directory
   - **Creation**: Auto-create directory if it doesn't exist
   - **Preservation**: Existing directory contents preserved unless overwrite enabled
-  - **Organization**: Consider sub-directories for large extractions
+  - **Organization**: Files stored in single directory structure
 - **Console Output**: Output to stdout when specified with "-" or "stdout"
   - **Format**: JSON with proper formatting for readability
   - **Usage**: Suitable for quick testing or piping to other tools
@@ -105,7 +105,6 @@ A command-line tool for extracting JIRA issues and related issues with configura
 #### Overwrite Protection
 - **Default**: Fail if file would be overwritten
 - **Override**: `--overwrite` flag to allow replacing existing files
-- **Backup**: Optional backup of existing files before overwrite
 
 ### Command Line Interface
 
@@ -205,3 +204,7 @@ A command-line tool for extracting JIRA issues and related issues with configura
 ### UI/Web Interface
 - **Web Interface**: Command-line tool only, no web-based interface.
 - **Interactive GUI**: No graphical user interface or interactive features.
+
+### File Management Features
+- **Backup Functionality**: Tool does not create backups of existing files before overwrite. File backup is user responsibility.
+- **Complex Directory Organization**: Files are stored in single directory structure, not organized in subdirectories by issue or relationship type.
