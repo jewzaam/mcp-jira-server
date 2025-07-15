@@ -1,6 +1,7 @@
 # JIRA Extractor
 
 ![PR Check](https://github.com/jewzaam/jira-extractor/workflows/PR%20Check/badge.svg)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jewzaam/jira-extractor/main/.github/badges/coverage.json)](https://github.com/jewzaam/jira-extractor/actions/workflows/coverage-badge.yml)
 
 A command-line tool for extracting JIRA issues and related issues with configurable export options and relationship traversal.
 
