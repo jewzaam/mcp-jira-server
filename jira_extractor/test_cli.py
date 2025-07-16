@@ -12,6 +12,7 @@ from unittest.mock import Mock, patch, mock_open
 import json
 import sys
 import requests
+import io
 
 from .cli import (
     setup_logging, validate_url, write_output, create_parser, main
@@ -322,7 +323,8 @@ class TestMainFunction(unittest.TestCase):
         
         # Setup mocks
         mock_client_instance = Mock()
-        mock_client_instance.get_issue.return_value = {"key": "TEST-123"}
+        mock_client_instance.get_issue.return_value = {"key": "TEST-123", "fields": {"summary": "Test Issue"}}
+        mock_client_instance.test_connection.return_value = {"displayName": "Test User"}
         mock_jira_client.return_value = mock_client_instance
         
         with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
@@ -337,6 +339,12 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             main()
@@ -344,11 +352,13 @@ class TestMainFunction(unittest.TestCase):
             # Verify client creation
             mock_jira_client.assert_called_once_with(
                 'https://jira.example.com',
-                'bearer',
-                token='abc123'
+                username=None,
+                password=None,
+                token=None,
+                bearer_token='abc123'
             )
             
-            # Verify issue retrieval
+            # Verify issue retrieval (single issue mode)
             mock_client_instance.get_issue.assert_called_once_with('TEST-123', expand=None)
             
             # Verify output writing
@@ -377,6 +387,10 @@ class TestMainFunction(unittest.TestCase):
             mock_args.username = None
             mock_args.password = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -419,6 +433,12 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             main()
@@ -426,7 +446,10 @@ class TestMainFunction(unittest.TestCase):
             # Verify client creation with no auth
             mock_jira_client.assert_called_once_with(
                 'https://issues.redhat.com',
-                None
+                username=None,
+                password=None,
+                token=None,
+                bearer_token=None
             )
             
             # Verify no connection test was performed
@@ -447,6 +470,10 @@ class TestMainFunction(unittest.TestCase):
             mock_args = Mock()
             mock_args.url = 'bad-url'
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -492,6 +519,12 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             main()
@@ -499,9 +532,10 @@ class TestMainFunction(unittest.TestCase):
             # Verify client creation with token auth
             mock_jira_client.assert_called_once_with(
                 'https://jira.example.com',
-                'token',
                 username='testuser',
-                token='abc123'
+                password=None,
+                token='abc123',
+                bearer_token=None
             )
             
             # Verify connection test was performed
@@ -545,6 +579,12 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             main()
@@ -555,9 +595,10 @@ class TestMainFunction(unittest.TestCase):
             # Verify client creation with basic auth
             mock_jira_client.assert_called_once_with(
                 'https://jira.example.com',
-                'basic',
                 username='testuser',
-                password='prompted_password'
+                password='prompted_password',
+                token=None,
+                bearer_token=None
             )
             
             # Verify output was written
@@ -586,6 +627,10 @@ class TestMainFunction(unittest.TestCase):
             mock_args.username = None
             mock_args.password = 'secret'
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -628,6 +673,12 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -670,6 +721,12 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -712,6 +769,12 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -756,6 +819,12 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = True
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -801,6 +870,12 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -846,6 +921,12 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             main()
@@ -858,6 +939,453 @@ class TestMainFunction(unittest.TestCase):
                 False,
                 None
             )
+
+
+class TestDescendantFunctions(unittest.TestCase):
+    """Test cases for descendant extraction functions"""
+
+    def test_parse_depth_valid_integers(self):
+        """Test parse_depth with valid integer strings"""
+        from jira_extractor.cli import parse_depth
+        
+        self.assertEqual(parse_depth("0"), 0)
+        self.assertEqual(parse_depth("1"), 1)
+        self.assertEqual(parse_depth("5"), 5)
+        self.assertEqual(parse_depth("100"), 100)
+
+    def test_parse_depth_all_keyword(self):
+        """Test parse_depth with 'all' keyword"""
+        from jira_extractor.cli import parse_depth
+        
+        self.assertEqual(parse_depth("all"), -1)
+        self.assertEqual(parse_depth("ALL"), -1)
+        self.assertEqual(parse_depth("All"), -1)
+
+    def test_parse_depth_invalid_values(self):
+        """Test parse_depth with invalid values"""
+        from jira_extractor.cli import parse_depth
+        
+        with self.assertRaises(ValueError) as cm:
+            parse_depth("invalid")
+        self.assertIn("Invalid depth value: invalid", str(cm.exception))
+
+        with self.assertRaises(ValueError) as cm:
+            parse_depth("-1")
+        self.assertIn("Use non-negative integer or 'all'", str(cm.exception))
+
+        with self.assertRaises(ValueError) as cm:
+            parse_depth("-5")
+        self.assertIn("Use non-negative integer or 'all'", str(cm.exception))
+
+    @patch('builtins.print')
+    def test_write_multiple_issues_stdout(self, mock_print):
+        """Test write_multiple_issues output to stdout"""
+        from jira_extractor.cli import write_multiple_issues
+        
+        issues = {
+            "TEST-1": {"key": "TEST-1", "fields": {"summary": "Test Issue 1"}},
+            "TEST-2": {"key": "TEST-2", "fields": {"summary": "Test Issue 2"}}
+        }
+        metadata = {"start_issue": "TEST-1", "total_extracted": 2}
+        
+        write_multiple_issues(issues, "-", extraction_metadata=metadata)
+        
+        # Check that print was called with JSON output
+        self.assertTrue(mock_print.called)
+        printed_output = mock_print.call_args[0][0]
+        self.assertIn("extraction_metadata", printed_output)
+        self.assertIn("issues", printed_output)
+        self.assertIn("TEST-1", printed_output)
+        self.assertIn("TEST-2", printed_output)
+
+    def test_write_multiple_issues_stdout_explicit(self):
+        """Test write_multiple_issues output to explicit stdout"""
+        from jira_extractor.cli import write_multiple_issues
+        
+        issues = {"TEST-1": {"key": "TEST-1", "fields": {"summary": "Test Issue 1"}}}
+        
+        with patch('builtins.print') as mock_print:
+            write_multiple_issues(issues, "stdout")
+            self.assertTrue(mock_print.called)
+
+    @patch('jira_extractor.cli.os.makedirs')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('builtins.print')
+    def test_write_multiple_issues_directory(self, mock_print, mock_file_open, mock_makedirs):
+        """Test write_multiple_issues output to directory"""
+        from jira_extractor.cli import write_multiple_issues
+        
+        issues = {
+            "TEST-1": {
+                "key": "TEST-1",
+                "fields": {
+                    "summary": "Test Issue 1",
+                    "issuetype": {"name": "Bug"},
+                    "status": {"name": "Open"},
+                    "subtasks": [],
+                    "issuelinks": [],
+                    "comment": {"total": 5}
+                }
+            }
+        }
+        metadata = {"start_issue": "TEST-1"}
+        
+        write_multiple_issues(issues, "./output", extraction_metadata=metadata)
+        
+        # Verify directory creation
+        mock_makedirs.assert_called_once_with("./output", exist_ok=True)
+        
+        # Verify file writes (issue file + metadata file + summary file)
+        self.assertEqual(mock_file_open.call_count, 3)
+        
+        # Verify print statements
+        print_calls = [call[0][0] for call in mock_print.call_args_list]
+        self.assertTrue(any("Issue TEST-1 saved to" in call for call in print_calls))
+        self.assertTrue(any("Extraction summary saved to" in call for call in print_calls))
+        self.assertTrue(any("Total issues extracted: 1" in call for call in print_calls))
+
+    @patch('jira_extractor.cli.os.path.exists')
+    def test_write_multiple_issues_file_exists_no_overwrite(self, mock_exists):
+        """Test write_multiple_issues with existing file and no overwrite"""
+        from jira_extractor.cli import write_multiple_issues
+        
+        issues = {"TEST-1": {"key": "TEST-1", "fields": {"summary": "Test Issue 1"}}}
+        mock_exists.return_value = True
+        
+        with self.assertRaises(Exception) as cm:
+            write_multiple_issues(issues, "./output", overwrite=False)
+        
+        self.assertIn("already exists", str(cm.exception))
+        self.assertIn("Use --overwrite", str(cm.exception))
+
+    @patch('jira_extractor.cli.os.makedirs')
+    @patch('jira_extractor.cli.os.path.exists')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('builtins.print')
+    def test_write_multiple_issues_file_exists_with_overwrite(self, mock_print, mock_file_open, mock_exists, mock_makedirs):
+        """Test write_multiple_issues with existing file and overwrite enabled"""
+        from jira_extractor.cli import write_multiple_issues
+        
+        issues = {"TEST-1": {"key": "TEST-1", "fields": {"summary": "Test Issue 1", "subtasks": [], "issuelinks": [], "comment": {"total": 0}}}}
+        mock_exists.return_value = True
+        
+        write_multiple_issues(issues, "./output", overwrite=True)
+        
+        # Should proceed without error
+        self.assertTrue(mock_file_open.called)
+
+
+class TestDescendantArgumentParser(unittest.TestCase):
+    """Test cases for descendant-related argument parsing"""
+
+    def test_parser_descendant_depth_option(self):
+        """Test parser with descendant depth option"""
+        from jira_extractor.cli import create_parser
+        
+        parser = create_parser()
+        args = parser.parse_args([
+            '-u', 'https://jira.example.com',
+            '-i', 'TEST-123',
+            '--descendant-depth', '2',
+            '--bearer-token', 'abc123'
+        ])
+        
+        self.assertEqual(args.descendant_depth, '2')
+        self.assertEqual(args.url, 'https://jira.example.com')
+        self.assertEqual(args.issue, 'TEST-123')
+
+    def test_parser_desc_depth_short_option(self):
+        """Test parser with short desc-depth option"""
+        from jira_extractor.cli import create_parser
+        
+        parser = create_parser()
+        args = parser.parse_args([
+            '-u', 'https://jira.example.com',
+            '-i', 'TEST-123',
+            '--desc-depth', 'all',
+            '--bearer-token', 'abc123'
+        ])
+        
+        self.assertEqual(args.descendant_depth, 'all')
+
+    def test_parser_relationship_options(self):
+        """Test parser with relationship traversal options"""
+        from jira_extractor.cli import create_parser
+        
+        parser = create_parser()
+        args = parser.parse_args([
+            '-u', 'https://jira.example.com',
+            '-i', 'TEST-123',
+            '--include-subtasks',
+            '--include-links',
+            '--include-remote-links',
+            '--bearer-token', 'abc123'
+        ])
+        
+        self.assertTrue(args.include_subtasks)
+        self.assertTrue(args.include_links)
+        self.assertTrue(args.include_remote_links)
+
+    def test_parser_descendant_defaults(self):
+        """Test parser defaults for descendant options"""
+        from jira_extractor.cli import create_parser
+        
+        parser = create_parser()
+        args = parser.parse_args([
+            '-u', 'https://jira.example.com',
+            '-i', 'TEST-123',
+            '--bearer-token', 'abc123'
+        ])
+        
+        self.assertEqual(args.descendant_depth, '0')
+        self.assertFalse(args.include_subtasks)
+        self.assertFalse(args.include_links)
+        self.assertFalse(args.include_remote_links)
+
+
+class TestMainFunctionDescendants(unittest.TestCase):
+    """Test cases for main function with descendant functionality"""
+
+    @patch('jira_extractor.cli.create_parser')
+    @patch('jira_extractor.cli.JiraClient')
+    @patch('jira_extractor.cli.write_multiple_issues')
+    def test_main_descendant_extraction_subtasks(self, mock_write_multiple, mock_jira_client, mock_create_parser):
+        """Test main function with descendant extraction including subtasks"""
+        from jira_extractor.cli import main
+        
+        # Setup parser mock
+        mock_parser = Mock()
+        mock_create_parser.return_value = mock_parser
+        
+        mock_args = Mock()
+        mock_args.url = 'https://jira.example.com'
+        mock_args.issue = 'PARENT-1'
+        mock_args.bearer_token = 'abc123'
+        mock_args.token = None
+        mock_args.username = None
+        mock_args.password = None
+        mock_args.output = '-'
+        mock_args.overwrite = False
+        mock_args.expand = None
+        mock_args.debug = False
+        mock_args.descendant_depth = '1'
+        mock_args.include_subtasks = True
+        mock_args.include_links = False
+        mock_args.include_remote_links = False
+        mock_args.include_parent_links = False
+        mock_args.parent_link_field = 'Parent Link'
+        mock_parser.parse_args.return_value = mock_args
+        
+        # Setup client mock
+        mock_client_instance = Mock()
+        mock_jira_client.return_value = mock_client_instance
+        
+        # Mock descendants data
+        descendants_data = {
+            "PARENT-1": {"key": "PARENT-1", "fields": {"summary": "Parent Issue"}},
+            "CHILD-1": {"key": "CHILD-1", "fields": {"summary": "Child Issue"}},
+            "_extraction_metadata": {
+                "start_issue": "PARENT-1",
+                "total_issues": 2,
+                "include_subtasks": True
+            }
+        }
+        mock_client_instance.get_descendants.return_value = descendants_data
+        mock_client_instance.test_connection.return_value = {"displayName": "Test User"}
+        
+        main()
+        
+        # Verify client creation and method calls
+        mock_jira_client.assert_called_once_with('https://jira.example.com', username=None, password=None, token=None, bearer_token='abc123')
+        mock_client_instance.get_descendants.assert_called_once_with(
+            'PARENT-1',
+            depth=1,
+            include_subtasks=True,
+            include_links=False,
+            include_remote_links=False,
+            include_parent_links=False,
+            parent_link_field='Parent Link',
+            expand=None
+        )
+        
+        # Verify write_multiple_issues called (extraction_metadata removed from issues)
+        expected_issues = {
+            "PARENT-1": {"key": "PARENT-1", "fields": {"summary": "Parent Issue"}},
+            "CHILD-1": {"key": "CHILD-1", "fields": {"summary": "Child Issue"}}
+        }
+        expected_metadata = {
+            "start_issue": "PARENT-1", 
+            "total_issues": 2,
+            "include_subtasks": True
+        }
+        mock_write_multiple.assert_called_once_with(
+            expected_issues, '-', False, None, expected_metadata
+        )
+
+    @patch('jira_extractor.cli.create_parser')
+    @patch('jira_extractor.cli.JiraClient')
+    @patch('jira_extractor.cli.write_multiple_issues')
+    def test_main_descendant_extraction_unlimited_depth(self, mock_write_multiple, mock_jira_client, mock_create_parser):
+        """Test main function with unlimited depth descendant extraction"""
+        from jira_extractor.cli import main
+        
+        # Setup parser mock
+        mock_parser = Mock()
+        mock_create_parser.return_value = mock_parser
+        
+        mock_args = Mock()
+        mock_args.url = 'https://jira.example.com'
+        mock_args.issue = 'ROOT-1'
+        mock_args.bearer_token = 'abc123'
+        mock_args.token = None
+        mock_args.username = None
+        mock_args.password = None
+        mock_args.output = './output'
+        mock_args.overwrite = True
+        mock_args.expand = 'comments'
+        mock_args.debug = False
+        mock_args.descendant_depth = 'all'
+        mock_args.include_subtasks = True
+        mock_args.include_links = True
+        mock_args.include_remote_links = False
+        mock_args.include_parent_links = False
+        mock_args.parent_link_field = 'Parent Link'
+        mock_parser.parse_args.return_value = mock_args
+        
+        # Setup client mock
+        mock_client_instance = Mock()
+        mock_jira_client.return_value = mock_client_instance
+        
+        # Mock descendants data
+        descendants_data = {
+            "ROOT-1": {"key": "ROOT-1"},
+            "CHILD-1": {"key": "CHILD-1"},
+            "GRANDCHILD-1": {"key": "GRANDCHILD-1"},
+            "_extraction_metadata": {"start_issue": "ROOT-1", "max_depth": -1}
+        }
+        mock_client_instance.get_descendants.return_value = descendants_data
+        mock_client_instance.test_connection.return_value = {"displayName": "Test User"}
+        
+        main()
+        
+        # Verify get_descendants called with unlimited depth
+        mock_client_instance.get_descendants.assert_called_once_with(
+            'ROOT-1',
+            depth=-1,
+            include_subtasks=True,
+            include_links=True,
+            include_remote_links=False,
+            include_parent_links=False,
+            parent_link_field='Parent Link',
+            expand='comments'
+        )
+
+    @patch('jira_extractor.cli.create_parser')
+    @patch('jira_extractor.cli.JiraClient')
+    @patch('sys.stderr', new_callable=io.StringIO)
+    def test_main_descendant_no_issues_extracted(self, mock_stderr, mock_jira_client, mock_create_parser):
+        """Test main function when no issues are extracted"""
+        from jira_extractor.cli import main
+        
+        # Setup parser mock
+        mock_parser = Mock()
+        mock_create_parser.return_value = mock_parser
+        
+        mock_args = Mock()
+        mock_args.url = 'https://jira.example.com'
+        mock_args.issue = 'MISSING-1'
+        mock_args.bearer_token = 'abc123'
+        mock_args.token = None
+        mock_args.username = None
+        mock_args.password = None
+        mock_args.output = '-'
+        mock_args.overwrite = False
+        mock_args.expand = None
+        mock_args.debug = False
+        mock_args.descendant_depth = '1'
+        mock_args.include_subtasks = True
+        mock_args.include_links = False
+        mock_args.include_remote_links = False
+        mock_parser.parse_args.return_value = mock_args
+        
+        # Setup client mock - return empty result
+        mock_client_instance = Mock()
+        mock_jira_client.return_value = mock_client_instance
+        mock_client_instance.get_descendants.return_value = {"_extraction_metadata": {}}
+        mock_client_instance.test_connection.return_value = {"displayName": "Test User"}
+        
+        with self.assertRaises(SystemExit) as cm:
+            main()
+        
+        self.assertEqual(cm.exception.code, 1)
+
+    @patch('jira_extractor.cli.create_parser')
+    @patch('jira_extractor.cli.JiraClient')
+    @patch('jira_extractor.cli.write_output')
+    def test_main_single_issue_mode_fallback(self, mock_write_output, mock_jira_client, mock_create_parser):
+        """Test main function falls back to single issue mode when no descendant options"""
+        from jira_extractor.cli import main
+        
+        # Setup parser mock with no descendant options
+        mock_parser = Mock()
+        mock_create_parser.return_value = mock_parser
+        
+        mock_args = Mock()
+        mock_args.url = 'https://jira.example.com'
+        mock_args.issue = 'TEST-123'
+        mock_args.bearer_token = 'abc123'
+        mock_args.token = None
+        mock_args.username = None
+        mock_args.password = None
+        mock_args.output = '-'
+        mock_args.overwrite = False
+        mock_args.expand = None
+        mock_args.debug = False
+        mock_args.descendant_depth = '0'  # Default value
+        mock_args.include_subtasks = False
+        mock_args.include_links = False
+        mock_args.include_remote_links = False
+        mock_args.include_parent_links = False
+        mock_args.parent_link_field = 'Parent Link'
+        mock_parser.parse_args.return_value = mock_args
+        
+        # Setup client mock
+        mock_client_instance = Mock()
+        mock_jira_client.return_value = mock_client_instance
+        mock_client_instance.get_issue.return_value = {"key": "TEST-123", "fields": {"summary": "Test Issue"}}
+        mock_client_instance.test_connection.return_value = {"displayName": "Test User"}
+        
+        main()
+        
+        # Verify single issue mode is used
+        mock_client_instance.get_issue.assert_called_once_with('TEST-123', expand=None)
+        mock_write_output.assert_called_once()
+        
+        # Verify descendants method is NOT called
+        mock_client_instance.get_descendants.assert_not_called()
+
+    @patch('jira_extractor.cli.create_parser')
+    def test_main_invalid_depth_parameter(self, mock_create_parser):
+        """Test main function with invalid depth parameter"""
+        from jira_extractor.cli import main
+        
+        # Setup parser mock
+        mock_parser = Mock()
+        mock_create_parser.return_value = mock_parser
+        
+        mock_args = Mock()
+        mock_args.url = 'https://jira.example.com'
+        mock_args.issue = 'TEST-123'
+        mock_args.bearer_token = 'abc123'
+        mock_args.descendant_depth = 'invalid'
+        mock_parser.parse_args.return_value = mock_args
+        
+        with patch('sys.stderr', new_callable=io.StringIO) as mock_stderr:
+            with self.assertRaises(SystemExit) as cm:
+                main()
+            
+            self.assertEqual(cm.exception.code, 1)
+            self.assertIn("Invalid depth value: invalid", mock_stderr.getvalue())
 
 
 if __name__ == '__main__':
