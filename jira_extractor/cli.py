@@ -12,7 +12,7 @@ import json
 import sys
 import os
 from urllib.parse import urlparse
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import logging
 import getpass
 from datetime import datetime
@@ -48,7 +48,7 @@ def validate_url(url: str) -> str:
 
 
 def write_output(data: Dict[str, Any], output_path: str, issue_key: str, overwrite: bool = False,
-                 expand: str = None):
+                 expand: Optional[str] = None):
     """Write issue data to output destination"""
     json_str = json.dumps(data, indent=2, ensure_ascii=False)
 
@@ -92,6 +92,76 @@ def write_output(data: Dict[str, Any], output_path: str, issue_key: str, overwri
         print(f"Metadata saved to {metadata_path}")
 
 
+def write_multiple_issues(issues: Dict[str, Dict[str, Any]], output_path: str, 
+                         overwrite: bool = False, expand: Optional[str] = None, 
+                         extraction_metadata: Optional[Dict[str, Any]] = None):
+    """Write multiple issues and their relationships to output destination"""
+    
+    if output_path in ['-', 'stdout']:
+        # Output all issues as a single JSON object to stdout
+        output_data = {
+            "extraction_metadata": extraction_metadata or {},
+            "issues": issues
+        }
+        json_str = json.dumps(output_data, indent=2, ensure_ascii=False)
+        print(json_str)
+    else:
+        # Output to directory - each issue in separate file
+        os.makedirs(output_path, exist_ok=True)
+        
+        # Track extraction summary
+        extraction_summary = {
+            "extraction_timestamp": datetime.now().isoformat(),
+            "extraction_metadata": extraction_metadata or {},
+            "total_issues": len(issues),
+            "issue_keys": list(issues.keys()),
+            "expand_parameter": expand
+        }
+        
+        # Write each issue to separate file
+        for issue_key, issue_data in issues.items():
+            file_path = os.path.join(output_path, f"{issue_key}.json")
+            metadata_path = os.path.join(output_path, f"{issue_key}_metadata.json")
+
+            # Handle existing file
+            if os.path.exists(file_path) and not overwrite:
+                raise Exception(f"File {file_path} already exists. Use --overwrite to replace it.")
+
+            # Write main issue file
+            json_str = json.dumps(issue_data, indent=2, ensure_ascii=False)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(json_str)
+
+            # Generate individual metadata file
+            metadata = {
+                "extraction_timestamp": datetime.now().isoformat(),
+                "issue_key": issue_key,
+                "expand_parameter": expand,
+                "file_path": file_path,
+                "issue_summary": issue_data.get('fields', {}).get('summary', 'N/A'),
+                "issue_type": issue_data.get('fields', {}).get('issuetype', {}).get('name', 'N/A'),
+                "issue_status": issue_data.get('fields', {}).get('status', {}).get('name', 'N/A'),
+                "relationship_counts": {
+                    "subtasks": len(issue_data.get('fields', {}).get('subtasks', [])),
+                    "issue_links": len(issue_data.get('fields', {}).get('issuelinks', [])),
+                    "comments": issue_data.get('fields', {}).get('comment', {}).get('total', 0)
+                }
+            }
+
+            with open(metadata_path, 'w', encoding='utf-8') as f:
+                json.dump(metadata, f, indent=2, ensure_ascii=False)
+
+            print(f"Issue {issue_key} saved to {file_path}")
+
+        # Write extraction summary
+        summary_path = os.path.join(output_path, "_extraction_summary.json")
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            json.dump(extraction_summary, f, indent=2, ensure_ascii=False)
+        
+        print(f"Extraction summary saved to {summary_path}")
+        print(f"Total issues extracted: {len(issues)}")
+
+
 def create_parser():
     """Create and configure argument parser"""
     parser = argparse.ArgumentParser(
@@ -99,10 +169,17 @@ def create_parser():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Single issue extraction
   %(prog)s -u https://issues.redhat.com -i RFE-7877 --bearer-token abc123
   %(prog)s -u https://issues.redhat.com -i RFE-7877 --username $USER --token abc123
   %(prog)s -u https://issues.redhat.com -i RFE-7877 --username $USER --password
-  %(prog)s -u https://issues.redhat.com -i RFE-7877 --username $USER -o ./output --bearer-token abc123
+  
+  # Descendant extraction with depth control
+  %(prog)s -u https://issues.redhat.com -i RFE-7877 --descendant-depth 2 --include-subtasks --bearer-token abc123
+  %(prog)s -u https://issues.redhat.com -i RFE-7877 --desc-depth all --include-links --username $USER --token abc123
+  
+  # Multiple relationship types with file output
+  %(prog)s -u https://issues.redhat.com -i RFE-7877 --descendant-depth 3 --include-subtasks --include-links -o ./output --bearer-token abc123
         """
     )
 
@@ -128,10 +205,44 @@ Examples:
     field_group = parser.add_argument_group('Field Control')
     field_group.add_argument('--expand', help='Comma-separated fields to expand (e.g., changelog,comments)')
 
+    # Relationship traversal options
+    relationship_group = parser.add_argument_group('Relationship Traversal')
+    relationship_group.add_argument('--descendant-depth', '--desc-depth', default='0',
+                                   help='Maximum descendant traversal depth: 0 (target only), N (N levels), or "all" (unlimited)')
+    relationship_group.add_argument('--include-subtasks', action='store_true',
+                                   help='Include subtask relationships in traversal')
+    relationship_group.add_argument('--include-links', action='store_true',
+                                   help='Include issue links in traversal')
+    relationship_group.add_argument('--include-remote-links', action='store_true',
+                                   help='Include remote links in traversal')
+
     # Debug options
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
 
     return parser
+
+
+def parse_depth(depth_str: str) -> int:
+    """Parse depth parameter into integer or -1 for unlimited
+    
+    Args:
+        depth_str: Depth string ('0', '1', '2', ..., 'all')
+        
+    Returns:
+        Non-negative integer for limited depth, -1 for unlimited depth
+        
+    Raises:
+        ValueError: If depth_str is invalid
+    """
+    if depth_str.lower() == 'all':
+        return -1
+    try:
+        depth = int(depth_str)
+        if depth < 0:
+            raise ValueError("Depth must be non-negative or 'all'")
+        return depth
+    except ValueError:
+        raise ValueError(f"Invalid depth value: {depth_str}. Use non-negative integer or 'all'")
 
 
 def main():
@@ -145,6 +256,13 @@ def main():
     # Validate inputs
     try:
         url = validate_url(args.url)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Parse descendant depth parameter
+    try:
+        descendant_depth = parse_depth(args.descendant_depth)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -176,6 +294,14 @@ def main():
         auth_method = None
         auth_kwargs = {}
 
+    # Determine if descendant extraction is requested
+    has_descendant_options = (
+        descendant_depth > 0 or descendant_depth == -1 or 
+        args.include_subtasks or 
+        args.include_links or 
+        args.include_remote_links
+    )
+
     try:
         # Initialize JIRA client
         client = JiraClient(url, auth_method, **auth_kwargs)
@@ -188,12 +314,53 @@ def main():
         else:
             logging.info("Attempting unauthenticated access to public issue...")
 
-        # Fetch issue
-        logging.info(f"Fetching issue: {args.issue}")
-        issue_data = client.get_issue(args.issue, expand=args.expand)
+        if has_descendant_options:
+            # Descendant extraction mode
+            logging.info(f"Extracting issue {args.issue} with descendants (depth: {descendant_depth if descendant_depth != -1 else 'unlimited'})")
+            
+            # Log extraction options
+            if args.include_subtasks:
+                logging.info("Including subtask relationships")
+            if args.include_links:
+                logging.info("Including issue links")
+            if args.include_remote_links:
+                logging.info("Including remote links")
+            
+            # Fetch issue and descendants
+            issues_data = client.get_descendants(
+                args.issue, 
+                depth=descendant_depth,
+                include_subtasks=args.include_subtasks,
+                include_links=args.include_links,
+                include_remote_links=args.include_remote_links,
+                expand=args.expand
+            )
+            
+            # Extract metadata and issues
+            extraction_metadata = issues_data.pop("_extraction_metadata", {})
+            
+            if not issues_data:
+                logging.warning("No issues were extracted")
+                sys.exit(1)
+            
+            logging.info(f"Successfully extracted {len(issues_data)} issues")
+            
+            # Write output
+            write_multiple_issues(
+                issues_data, 
+                args.output, 
+                args.overwrite, 
+                args.expand,
+                extraction_metadata
+            )
+            
+        else:
+            # Single issue extraction mode (original behavior)
+            logging.info(f"Fetching single issue: {args.issue}")
+            issue_data = client.get_issue(args.issue, expand=args.expand)
 
-        # Write output
-        write_output(issue_data, args.output, args.issue, args.overwrite, args.expand)
+            # Write output
+            write_output(issue_data, args.output, args.issue, args.overwrite, args.expand)
 
         if args.output not in ['-', 'stdout']:
             logging.info("Extraction completed successfully")

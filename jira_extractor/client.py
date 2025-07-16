@@ -9,7 +9,7 @@ This program is licensed under GPL-3.0-or-later
 
 import logging
 from urllib.parse import urljoin
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Set, List
 
 import requests
 from requests.auth import HTTPBasicAuth
@@ -71,6 +71,50 @@ class JiraClient:
         else:
             raise ValueError(f"Unsupported auth method: {auth_method}")
 
+    def _make_api_request(self, url: str, params: Optional[Dict[str, Any]] = None, 
+                         resource_name: str = "resource", 
+                         handle_404_as_empty: bool = False) -> Any:
+        """
+        Make an API request with centralized error handling
+        
+        Args:
+            url: API endpoint URL
+            params: Query parameters
+            resource_name: Name of resource for error messages
+            handle_404_as_empty: If True, return empty list for 404 errors
+            
+        Returns:
+            JSON response data or empty list for 404 when handle_404_as_empty=True
+            
+        Raises:
+            Exception: For authentication, permission, or HTTP errors
+        """
+        logging.debug(f"Making API request to: {url}")
+        if params:
+            logging.debug(f"Query parameters: {params}")
+        
+        response = self.session.get(url, params=params or {})
+        
+        # Log response details for debugging
+        logging.debug(f"Response status: {response.status_code}")
+        logging.debug(f"Response headers: {dict(response.headers)}")
+        
+        # Handle common error cases
+        if response.status_code == 401:
+            raise Exception("Authentication failed. Please check your credentials.")
+        elif response.status_code == 403:
+            raise Exception(f"Access denied to {resource_name}. Check permissions.")
+        elif response.status_code == 404:
+            if handle_404_as_empty:
+                return []
+            else:
+                raise Exception(f"{resource_name} not found.")
+        
+        # Handle any other HTTP errors
+        response.raise_for_status()
+        
+        return response.json()
+
     def get_issue(self, issue_key: str, expand: Optional[str] = None) -> Dict[str, Any]:
         """
         Fetch a single JIRA issue
@@ -83,43 +127,187 @@ class JiraClient:
             Issue data as dictionary
 
         Raises:
-            requests.HTTPError: If API request fails
+            Exception: If API request fails
         """
         url = urljoin(self.api_base, f'issue/{issue_key}')
         params = {}
         if expand:
             params['expand'] = expand
 
-        logging.debug(f"Fetching issue from: {url}")
-        if params:
-            logging.debug(f"Query parameters: {params}")
-
-        response = self.session.get(url, params=params)
-
-        # Log response details for debugging
-        logging.debug(f"Response status: {response.status_code}")
-        logging.debug(f"Response headers: {dict(response.headers)}")
-
-        if response.status_code == 401:
-            raise Exception("Authentication failed. Please check your credentials.")
-        elif response.status_code == 403:
-            raise Exception(f"Access denied to issue {issue_key}. Check permissions.")
-        elif response.status_code == 404:
-            raise Exception(f"Issue {issue_key} not found.")
-
-        response.raise_for_status()
-
-        return response.json()
+        return self._make_api_request(
+            url, 
+            params=params if params else None,
+            resource_name=f"Issue {issue_key}"
+        )
 
     def test_connection(self) -> Dict[str, Any]:
         """Test JIRA connection and authentication"""
         url = urljoin(self.api_base, 'myself')
-        logging.debug(f"Testing connection to: {url}")
+        return self._make_api_request(url, resource_name="User information")
 
-        response = self.session.get(url)
+    def get_remote_links(self, issue_key: str) -> List[Dict[str, Any]]:
+        """
+        Fetch remote links for a JIRA issue
 
-        if response.status_code == 401:
-            raise Exception("Authentication failed. Please check your credentials.")
+        Args:
+            issue_key: JIRA issue key (e.g., 'RFE-7877')
 
-        response.raise_for_status()
-        return response.json()
+        Returns:
+            List of remote link data
+
+        Raises:
+            Exception: If API request fails
+        """
+        url = urljoin(self.api_base, f'issue/{issue_key}/remotelink')
+        
+        return self._make_api_request(
+            url,
+            resource_name=f"remote links for issue {issue_key}",
+            handle_404_as_empty=True
+        )
+
+    def get_descendants(self, issue_key: str, depth: int = 0, 
+                       include_subtasks: bool = False, include_links: bool = False,
+                       include_remote_links: bool = False, expand: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+        """
+        Fetch an issue and its descendants based on specified relationship types and depth
+
+        Args:
+            issue_key: Starting JIRA issue key
+            depth: Maximum traversal depth (-1 for unlimited, 0 for issue only)
+            include_subtasks: Include subtask relationships
+            include_links: Include issue links
+            include_remote_links: Include remote links
+            expand: Comma-separated fields to expand for each issue
+
+        Returns:
+            Dictionary mapping issue keys to issue data
+
+        Raises:
+            Exception: If traversal encounters errors
+        """
+        issues = {}  # Dict[str, Dict[str, Any]]
+        visited = set()  # Set[str]
+        to_process = [(issue_key, 0)]  # List[(str, int)] - (issue_key, current_depth)
+
+        extraction_metadata = {
+            "start_issue": issue_key,
+            "max_depth": depth,
+            "include_subtasks": include_subtasks,
+            "include_links": include_links,
+            "include_remote_links": include_remote_links,
+            "traversal_order": []
+        }
+
+        while to_process:
+            current_key, current_depth = to_process.pop(0)
+            
+            # Skip if already processed
+            if current_key in visited:
+                continue
+                
+            visited.add(current_key)
+            extraction_metadata["traversal_order"].append({
+                "issue_key": current_key,
+                "depth": current_depth
+            })
+            
+            logging.info(f"Processing issue {current_key} at depth {current_depth}")
+            
+            try:
+                # Fetch the issue
+                issue_data = self.get_issue(current_key, expand=expand)
+                issues[current_key] = issue_data
+                
+                # Stop traversing deeper if we've reached the depth limit
+                if depth != -1 and current_depth >= depth:
+                    continue
+                
+                # Collect related issues to process next
+                related_issues = self._get_related_issue_keys(
+                    issue_data, current_key, include_subtasks, include_links, include_remote_links
+                )
+                
+                # Add related issues to processing queue
+                for related_key in related_issues:
+                    if related_key not in visited:
+                        to_process.append((related_key, current_depth + 1))
+                        
+            except Exception as e:
+                logging.warning(f"Failed to process issue {current_key}: {e}")
+                # Continue processing other issues
+                continue
+        
+        # Store extraction metadata in the result
+        issues["_extraction_metadata"] = extraction_metadata
+        
+        return issues
+
+    def _get_related_issue_keys(self, issue_data: Dict[str, Any], current_key: str,
+                               include_subtasks: bool, include_links: bool, 
+                               include_remote_links: bool) -> Set[str]:
+        """
+        Extract related issue keys from issue data based on relationship types
+
+        Args:
+            issue_data: Issue data from JIRA API
+            current_key: Current issue key (for logging)
+            include_subtasks: Include subtask relationships
+            include_links: Include issue links
+            include_remote_links: Include remote links
+
+        Returns:
+            Set of related issue keys
+        """
+        related_keys = set()
+        fields = issue_data.get('fields', {})
+        
+        # Process subtasks
+        if include_subtasks:
+            # Get subtasks (children)
+            subtasks = fields.get('subtasks', [])
+            for subtask in subtasks:
+                subtask_key = subtask.get('key')
+                if subtask_key:
+                    related_keys.add(subtask_key)
+                    logging.debug(f"Found subtask: {subtask_key}")
+            
+            # Get parent issue
+            parent = fields.get('parent')
+            if parent:
+                parent_key = parent.get('key')
+                if parent_key:
+                    related_keys.add(parent_key)
+                    logging.debug(f"Found parent: {parent_key}")
+        
+        # Process issue links
+        if include_links:
+            issue_links = fields.get('issuelinks', [])
+            for link in issue_links:
+                # Links can have inwardIssue or outwardIssue
+                inward_issue = link.get('inwardIssue')
+                if inward_issue:
+                    inward_key = inward_issue.get('key')
+                    if inward_key:
+                        related_keys.add(inward_key)
+                        link_type = link.get('type', {}).get('inward', 'related')
+                        logging.debug(f"Found inward link ({link_type}): {inward_key}")
+                
+                outward_issue = link.get('outwardIssue')
+                if outward_issue:
+                    outward_key = outward_issue.get('key')
+                    if outward_key:
+                        related_keys.add(outward_key)
+                        link_type = link.get('type', {}).get('outward', 'related')
+                        logging.debug(f"Found outward link ({link_type}): {outward_key}")
+        
+        # Process remote links (these don't lead to other JIRA issues, but we can fetch them for completeness)
+        if include_remote_links:
+            try:
+                remote_links = self.get_remote_links(current_key)
+                logging.debug(f"Found {len(remote_links)} remote links for {current_key}")
+                # Note: Remote links don't contribute to related_keys since they're external
+            except Exception as e:
+                logging.debug(f"Could not fetch remote links for {current_key}: {e}")
+        
+        return related_keys
