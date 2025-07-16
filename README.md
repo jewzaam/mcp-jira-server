@@ -1,6 +1,7 @@
 # JIRA Extractor
 
 ![PR Check](https://github.com/jewzaam/jira-extractor/workflows/PR%20Check/badge.svg)
+![Coverage Check](https://github.com/jewzaam/jira-extractor/workflows/Coverage%20Check/badge.svg)
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jewzaam/jira-extractor/main/.github/badges/coverage.json)](https://github.com/jewzaam/jira-extractor/actions/workflows/coverage-badge.yml)
 
 A command-line tool for extracting JIRA issues and related issues with configurable export options and relationship traversal.
@@ -178,6 +179,56 @@ Options:
   --overwrite           Overwrite existing files
   --help                Show this message and exit.
 ```
+
+## Development
+
+### Testing and Coverage
+
+The project requires comprehensive test coverage with a minimum threshold of **90%**. All pull requests must meet this requirement before merging.
+
+```bash
+# Run tests with coverage report
+make coverage
+
+# Run all tests (includes linting and coverage)
+make test
+
+# Generate HTML coverage report for detailed analysis
+make coverage-html
+```
+
+#### Coverage Enforcement
+
+- **Automated checks**: Coverage is automatically checked on all pull requests
+- **Minimum threshold**: 90% code coverage required
+- **Blocking**: PRs below 90% coverage cannot be merged
+- **Badge**: Current coverage status is displayed in the README badge
+
+#### Running Tests Locally
+
+```bash
+# Run all tests with linting
+make test
+
+# Run tests only (no linting)
+make test-unit
+
+# Check test coverage
+make coverage
+
+# View detailed coverage in browser
+make coverage-html && open htmlcov/index.html
+```
+
+### Contributing
+
+When contributing to this project:
+
+1. Ensure all tests pass: `make test`
+2. Maintain or improve coverage: `make coverage`
+3. Follow existing code style and patterns
+4. Add tests for new functionality
+5. Update documentation as needed
 
 ## Authentication
 
