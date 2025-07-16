@@ -1324,45 +1324,45 @@ class TestMainFunctionDescendants(unittest.TestCase):
     @patch('jira_extractor.cli.write_output')
     def test_main_single_issue_mode_fallback(self, mock_write_output, mock_jira_client, mock_create_parser):
         """Test main function falls back to single issue mode when no descendant options"""
-        from jira_extractor.cli import main
+        # Mock command line arguments
+        with patch('jira_extractor.cli.create_parser') as mock_parser:
         
-        # Setup parser mock with no descendant options
-        mock_parser = Mock()
-        mock_create_parser.return_value = mock_parser
-        
-        mock_args = Mock()
-        mock_args.url = 'https://jira.example.com'
-        mock_args.issue = 'TEST-123'
-        mock_args.bearer_token = 'abc123'
-        mock_args.token = None
-        mock_args.username = None
-        mock_args.password = None
-        mock_args.output = '-'
-        mock_args.overwrite = False
-        mock_args.expand = None
-        mock_args.debug = False
-        mock_args.descendant_depth = '0'  # Default value
-        mock_args.include_subtasks = False
-        mock_args.include_links = False
-        mock_args.include_remote_links = False
-        mock_args.include_parent_links = False
-        mock_args.parent_link_field = 'Parent Link'
-        mock_parser.parse_args.return_value = mock_args
-        
-        # Setup client mock
-        mock_client_instance = Mock()
-        mock_jira_client.return_value = mock_client_instance
-        mock_client_instance.get_issue.return_value = {"key": "TEST-123", "fields": {"summary": "Test Issue"}}
-        mock_client_instance.test_connection.return_value = {"displayName": "Test User"}
-        
-        main()
-        
-        # Verify single issue mode is used
-        mock_client_instance.get_issue.assert_called_once_with('TEST-123', expand=None)
-        mock_write_output.assert_called_once()
-        
-        # Verify descendants method is NOT called
-        mock_client_instance.get_descendants.assert_not_called()
+            mock_args = Mock()
+            mock_args.url = 'https://jira.example.com'
+            mock_args.issue = 'TEST-123'
+            mock_args.bearer_token = 'abc123'
+            mock_args.token = None
+            mock_args.username = None
+            mock_args.password = None
+            mock_args.output = '-'
+            mock_args.overwrite = False
+            mock_args.expand = None
+            mock_args.debug = False
+            mock_args.descendant_depth = '0'  # Default value
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
+            mock_parser.parse_args.return_value = mock_args
+            
+            # Setup client mock
+            mock_client_instance = Mock()
+            mock_jira_client.return_value = mock_client_instance
+            mock_client_instance.get_issue.return_value = {"key": "TEST-123", "fields": {"summary": "Test Issue"}}
+            mock_client_instance.test_connection.return_value = {"displayName": "Test User"}
+            
+            main()
+            
+            # Verify single issue mode is used
+            mock_client_instance.get_issue.assert_called_once_with('TEST-123', expand=None)
+            mock_write_output.assert_called_once()
+            
+            # Verify descendants method is NOT called
+            mock_client_instance.get_descendants.assert_not_called()
+
+    @patch('jira_extractor.cli.create_parser')
+
 
     @patch('jira_extractor.cli.create_parser')
     def test_main_invalid_depth_parameter(self, mock_create_parser):
