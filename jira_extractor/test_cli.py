@@ -36,7 +36,7 @@ class TestCLIFunctions(unittest.TestCase):
     
     @patch('jira_extractor.cli.logging.basicConfig')
     def test_setup_logging_info_level(self, mock_basic_config):
-        """Test logging setup with INFO level"""
+        """LOGGING-01: Test logging setup with INFO level"""
         setup_logging(debug=False)
         
         mock_basic_config.assert_called_once()
@@ -46,7 +46,7 @@ class TestCLIFunctions(unittest.TestCase):
     
     @patch('jira_extractor.cli.logging.basicConfig')
     def test_setup_logging_debug_level(self, mock_basic_config):
-        """Test logging setup with DEBUG level"""
+        """LOGGING-02: Test logging setup with DEBUG level"""
         setup_logging(debug=True)
         
         mock_basic_config.assert_called_once()
@@ -55,26 +55,26 @@ class TestCLIFunctions(unittest.TestCase):
         self.assertIn('%(asctime)s - %(levelname)s: %(message)s', call_args[1]['format'])
     
     def test_validate_url_with_scheme(self):
-        """Test URL validation with existing scheme"""
+        """URL-01: Test URL validation with existing scheme"""
         url = "https://jira.example.com"
         result = validate_url(url)
         self.assertEqual(result, url)
     
     def test_validate_url_without_scheme(self):
-        """Test URL validation adds https scheme"""
+        """URL-02: Test URL validation adds https scheme"""
         url = "jira.example.com"
         result = validate_url(url)
         self.assertEqual(result, f"https://{url}")
     
     def test_validate_url_invalid(self):
-        """Test URL validation with invalid URL"""
+        """URL-03: Test URL validation with invalid URL"""
         with self.assertRaises(ValueError) as cm:
             validate_url("")
         self.assertIn("Invalid URL", str(cm.exception))
     
     @patch('builtins.print')
     def test_write_output_stdout(self, mock_print):
-        """Test writing output to stdout"""
+        """OUTPUT-01: Test writing output to stdout"""
         write_output(self.test_data, "-", self.test_issue_key)
         
         mock_print.assert_called_once()
@@ -84,7 +84,7 @@ class TestCLIFunctions(unittest.TestCase):
     
     @patch('builtins.print')
     def test_write_output_stdout_explicit(self, mock_print):
-        """Test writing output to stdout with explicit 'stdout'"""
+        """OUTPUT-02: Test writing output to stdout with explicit 'stdout'"""
         write_output(self.test_data, "stdout", self.test_issue_key)
         
         mock_print.assert_called_once()
@@ -98,7 +98,7 @@ class TestCLIFunctions(unittest.TestCase):
     @patch('os.path.exists')
     @patch('jira_extractor.cli.datetime')
     def test_write_output_metadata_content(self, mock_datetime, mock_exists, mock_print, mock_file, mock_makedirs):
-        """Test metadata file content generation"""
+        """OUTPUT-03: Test metadata file content generation"""
         mock_exists.return_value = False
         mock_datetime.now.return_value.isoformat.return_value = "2025-01-01T12:00:00"
         
@@ -136,7 +136,7 @@ class TestCLIFunctions(unittest.TestCase):
     @patch('os.path.exists')
     @patch('builtins.print')
     def test_write_output_file_new(self, mock_print, mock_exists, mock_makedirs, mock_file):
-        """Test writing output to new file"""
+        """OUTPUT-04: Test writing output to new file"""
         mock_exists.return_value = False
         output_dir = "/test/output"
         
@@ -176,7 +176,7 @@ class TestCLIFunctions(unittest.TestCase):
     @patch('os.makedirs')
     @patch('os.path.exists')
     def test_write_output_file_exists_no_overwrite(self, mock_exists, mock_makedirs):
-        """Test writing output to existing file without overwrite flag"""
+        """OUTPUT-05: Test writing output to existing file without overwrite flag"""
         mock_exists.return_value = True
         output_dir = "/test/output"
         
@@ -191,7 +191,7 @@ class TestCLIFunctions(unittest.TestCase):
     @patch('os.path.exists')
     @patch('builtins.print')
     def test_write_output_file_exists_with_overwrite(self, mock_print, mock_exists, mock_makedirs, mock_file):
-        """Test writing output to existing file with overwrite flag"""
+        """OUTPUT-06: Test writing output to existing file with overwrite flag"""
         mock_exists.return_value = True
         output_dir = "/test/output"
         
@@ -217,7 +217,7 @@ class TestArgumentParser(unittest.TestCase):
         self.parser = create_parser()
     
     def test_parser_required_args(self):
-        """Test parser with required arguments"""
+        """PARSING-01: Test parser with required arguments"""
         args = self.parser.parse_args([
             '-u', 'https://jira.example.com',
             '-i', 'TEST-123'
@@ -227,17 +227,17 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.issue, 'TEST-123')
     
     def test_parser_missing_url(self):
-        """Test parser with missing required URL"""
+        """PARSING-02: Test parser with missing required URL"""
         with self.assertRaises(SystemExit):
             self.parser.parse_args(['-i', 'TEST-123'])
     
     def test_parser_missing_issue(self):
-        """Test parser with missing required issue"""
+        """PARSING-03: Test parser with missing required issue"""
         with self.assertRaises(SystemExit):
             self.parser.parse_args(['-u', 'https://jira.example.com'])
     
     def test_parser_bearer_token(self):
-        """Test parser with bearer token authentication"""
+        """AUTH-01: Test parser with bearer token authentication"""
         args = self.parser.parse_args([
             '-u', 'https://jira.example.com',
             '-i', 'TEST-123',
@@ -247,7 +247,7 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.bearer_token, 'abc123')
     
     def test_parser_token_auth(self):
-        """Test parser with API token authentication"""
+        """AUTH-02: Test parser with API token authentication"""
         args = self.parser.parse_args([
             '-u', 'https://jira.example.com',
             '-i', 'TEST-123',
@@ -259,7 +259,7 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.token, 'token123')
     
     def test_parser_password_auth(self):
-        """Test parser with password authentication"""
+        """AUTH-03: Test parser with password authentication"""
         args = self.parser.parse_args([
             '-u', 'https://jira.example.com',
             '-i', 'TEST-123',
@@ -271,7 +271,7 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.password, 'pass123')
     
     def test_parser_output_options(self):
-        """Test parser with output options"""
+        """PARSING-04: Test parser with output options"""
         args = self.parser.parse_args([
             '-u', 'https://jira.example.com',
             '-i', 'TEST-123',
@@ -283,7 +283,7 @@ class TestArgumentParser(unittest.TestCase):
         self.assertTrue(args.overwrite)
     
     def test_parser_field_options(self):
-        """Test parser with field expansion options"""
+        """PARSING-05: Test parser with field expansion options"""
         args = self.parser.parse_args([
             '-u', 'https://jira.example.com',
             '-i', 'TEST-123',
@@ -293,7 +293,7 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.expand, 'changelog,comments')
     
     def test_parser_debug_option(self):
-        """Test parser with debug option"""
+        """PARSING-06: Test parser with debug option"""
         args = self.parser.parse_args([
             '-u', 'https://jira.example.com',
             '-i', 'TEST-123',
@@ -311,7 +311,7 @@ class TestMainFunction(unittest.TestCase):
     @patch('jira_extractor.cli.setup_logging')
     @patch('sys.argv')
     def test_main_bearer_auth_success(self, mock_argv, mock_setup_logging, mock_write_output, mock_jira_client):
-        """Test main function with successful bearer authentication"""
+        """AUTH-04: Test main function with successful bearer authentication"""
         # Setup command line arguments
         mock_argv.__getitem__.side_effect = lambda x: [
             'jira_extractor.py',
@@ -369,7 +369,7 @@ class TestMainFunction(unittest.TestCase):
     @patch('sys.argv')
     @patch('builtins.print')
     def test_main_token_auth_missing_username(self, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
-        """Test main function with token auth but missing username"""
+        """AUTH-05: Test main function with token auth but missing username"""
         mock_argv.__getitem__.side_effect = lambda x: [
             'jira_extractor.py',
             '-u', 'https://jira.example.com',
@@ -407,7 +407,7 @@ class TestMainFunction(unittest.TestCase):
     @patch('sys.argv')
     @patch('builtins.print')
     def test_main_no_auth_public_issue(self, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
-        """Test main function with no authentication for public issue"""
+        """AUTH-06: Test main function with no authentication for public issue"""
         mock_argv.__getitem__.side_effect = lambda x: [
             'jira_extractor.py',
             '-u', 'https://issues.redhat.com',
@@ -463,7 +463,7 @@ class TestMainFunction(unittest.TestCase):
     @patch('sys.argv')
     @patch('builtins.print')
     def test_main_invalid_url(self, mock_print, mock_argv, mock_setup_logging, mock_validate_url):
-        """Test main function with invalid URL"""
+        """EXECUTION-01: Test main function with invalid URL"""
         mock_validate_url.side_effect = ValueError("Invalid URL: bad-url")
         
         with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
@@ -490,7 +490,7 @@ class TestMainFunction(unittest.TestCase):
     @patch('sys.argv')
     @patch('builtins.print')
     def test_main_token_auth_success(self, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
-        """Test main function with successful token authentication"""
+        """AUTH-07: Test main function with successful token authentication"""
         mock_argv.__getitem__.side_effect = lambda x: [
             'jira_extractor.py',
             '-u', 'https://jira.example.com',
@@ -550,7 +550,7 @@ class TestMainFunction(unittest.TestCase):
     @patch('builtins.print')
     @patch('getpass.getpass')
     def test_main_basic_auth_password_prompt(self, mock_getpass, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
-        """Test main function with basic auth and password prompt"""
+        """AUTH-08: Test main function with basic auth and password prompt"""
         mock_getpass.return_value = 'prompted_password'
         mock_argv.__getitem__.side_effect = lambda x: [
             'jira_extractor.py',
@@ -609,7 +609,7 @@ class TestMainFunction(unittest.TestCase):
     @patch('sys.argv')
     @patch('builtins.print')
     def test_main_basic_auth_missing_username(self, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
-        """Test main function with basic auth but missing username"""
+        """AUTH-09: Test main function with basic auth but missing username"""
         mock_argv.__getitem__.side_effect = lambda x: [
             'jira_extractor.py',
             '-u', 'https://jira.example.com',
@@ -647,7 +647,7 @@ class TestMainFunction(unittest.TestCase):
     @patch('sys.argv')
     @patch('builtins.print')
     def test_main_connection_error(self, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
-        """Test main function with connection error"""
+        """EXECUTION-02: Test main function with connection error"""
         mock_argv.__getitem__.side_effect = lambda x: [
             'jira_extractor.py',
             '-u', 'https://jira.example.com',
@@ -695,7 +695,7 @@ class TestMainFunction(unittest.TestCase):
     @patch('sys.argv')
     @patch('builtins.print')
     def test_main_timeout_error(self, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
-        """Test main function with timeout error"""
+        """EXECUTION-03: Test main function with timeout error"""
         mock_argv.__getitem__.side_effect = lambda x: [
             'jira_extractor.py',
             '-u', 'https://jira.example.com',
@@ -743,7 +743,7 @@ class TestMainFunction(unittest.TestCase):
     @patch('sys.argv')
     @patch('builtins.print')
     def test_main_http_error(self, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
-        """Test main function with HTTP error"""
+        """EXECUTION-04: Test main function with HTTP error"""
         mock_argv.__getitem__.side_effect = lambda x: [
             'jira_extractor.py',
             '-u', 'https://jira.example.com',
@@ -792,7 +792,7 @@ class TestMainFunction(unittest.TestCase):
     @patch('builtins.print')
     @patch('logging.exception')
     def test_main_generic_error_with_debug(self, mock_log_exception, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
-        """Test main function with generic error and debug enabled"""
+        """EXECUTION-05: Test main function with generic error and debug enabled"""
         mock_argv.__getitem__.side_effect = lambda x: [
             'jira_extractor.py',
             '-u', 'https://jira.example.com',
@@ -844,7 +844,7 @@ class TestMainFunction(unittest.TestCase):
     @patch('sys.argv')
     @patch('builtins.print')
     def test_main_generic_error_without_debug(self, mock_print, mock_argv, mock_setup_logging, mock_jira_client):
-        """Test main function with generic error and debug disabled"""
+        """EXECUTION-06: Test main function with generic error and debug disabled"""
         mock_argv.__getitem__.side_effect = lambda x: [
             'jira_extractor.py',
             '-u', 'https://jira.example.com',
@@ -893,7 +893,7 @@ class TestMainFunction(unittest.TestCase):
     @patch('sys.argv')
     @patch('builtins.print')
     def test_main_success_with_directory_output(self, mock_print, mock_argv, mock_write_output, mock_setup_logging, mock_jira_client):
-        """Test main function with successful execution and directory output"""
+        """EXECUTION-07: Test main function with successful execution and directory output"""
         mock_argv.__getitem__.side_effect = lambda x: [
             'jira_extractor.py',
             '-u', 'https://jira.example.com',
@@ -945,7 +945,7 @@ class TestDescendantFunctions(unittest.TestCase):
     """Test cases for descendant extraction functions"""
 
     def test_parse_depth_valid_integers(self):
-        """Test parse_depth with valid integer strings"""
+        """DESCENDANT-01: Test parse_depth with valid integer strings"""
         from jira_extractor.cli import parse_depth
         
         self.assertEqual(parse_depth("0"), 0)
@@ -954,7 +954,7 @@ class TestDescendantFunctions(unittest.TestCase):
         self.assertEqual(parse_depth("100"), 100)
 
     def test_parse_depth_all_keyword(self):
-        """Test parse_depth with 'all' keyword"""
+        """DESCENDANT-02: Test parse_depth with 'all' keyword"""
         from jira_extractor.cli import parse_depth
         
         self.assertEqual(parse_depth("all"), -1)
@@ -962,7 +962,7 @@ class TestDescendantFunctions(unittest.TestCase):
         self.assertEqual(parse_depth("All"), -1)
 
     def test_parse_depth_invalid_values(self):
-        """Test parse_depth with invalid values"""
+        """DESCENDANT-03: Test parse_depth with invalid values"""
         from jira_extractor.cli import parse_depth
         
         with self.assertRaises(ValueError) as cm:
@@ -979,7 +979,7 @@ class TestDescendantFunctions(unittest.TestCase):
 
     @patch('builtins.print')
     def test_write_multiple_issues_stdout(self, mock_print):
-        """Test write_multiple_issues output to stdout"""
+        """OUTPUT-07: Test write_multiple_issues output to stdout"""
         from jira_extractor.cli import write_multiple_issues
         
         issues = {
@@ -999,7 +999,7 @@ class TestDescendantFunctions(unittest.TestCase):
         self.assertIn("TEST-2", printed_output)
 
     def test_write_multiple_issues_stdout_explicit(self):
-        """Test write_multiple_issues output to explicit stdout"""
+        """OUTPUT-08: Test write_multiple_issues output to explicit stdout"""
         from jira_extractor.cli import write_multiple_issues
         
         issues = {"TEST-1": {"key": "TEST-1", "fields": {"summary": "Test Issue 1"}}}
@@ -1012,7 +1012,7 @@ class TestDescendantFunctions(unittest.TestCase):
     @patch('builtins.open', new_callable=mock_open)
     @patch('builtins.print')
     def test_write_multiple_issues_directory(self, mock_print, mock_file_open, mock_makedirs):
-        """Test write_multiple_issues output to directory"""
+        """OUTPUT-09: Test write_multiple_issues output to directory"""
         from jira_extractor.cli import write_multiple_issues
         
         issues = {
@@ -1046,7 +1046,7 @@ class TestDescendantFunctions(unittest.TestCase):
 
     @patch('jira_extractor.cli.os.path.exists')
     def test_write_multiple_issues_file_exists_no_overwrite(self, mock_exists):
-        """Test write_multiple_issues with existing file and no overwrite"""
+        """OUTPUT-10: Test write_multiple_issues with existing file and no overwrite"""
         from jira_extractor.cli import write_multiple_issues
         
         issues = {"TEST-1": {"key": "TEST-1", "fields": {"summary": "Test Issue 1"}}}
@@ -1063,7 +1063,7 @@ class TestDescendantFunctions(unittest.TestCase):
     @patch('builtins.open', new_callable=mock_open)
     @patch('builtins.print')
     def test_write_multiple_issues_file_exists_with_overwrite(self, mock_print, mock_file_open, mock_exists, mock_makedirs):
-        """Test write_multiple_issues with existing file and overwrite enabled"""
+        """OUTPUT-11: Test write_multiple_issues with existing file and overwrite enabled"""
         from jira_extractor.cli import write_multiple_issues
         
         issues = {"TEST-1": {"key": "TEST-1", "fields": {"summary": "Test Issue 1", "subtasks": [], "issuelinks": [], "comment": {"total": 0}}}}
@@ -1079,7 +1079,7 @@ class TestDescendantArgumentParser(unittest.TestCase):
     """Test cases for descendant-related argument parsing"""
 
     def test_parser_descendant_depth_option(self):
-        """Test parser with descendant depth option"""
+        """PARSING-07: Test parser with descendant depth option"""
         from jira_extractor.cli import create_parser
         
         parser = create_parser()
@@ -1095,7 +1095,7 @@ class TestDescendantArgumentParser(unittest.TestCase):
         self.assertEqual(args.issue, 'TEST-123')
 
     def test_parser_desc_depth_short_option(self):
-        """Test parser with short desc-depth option"""
+        """PARSING-08: Test parser with short desc-depth option"""
         from jira_extractor.cli import create_parser
         
         parser = create_parser()
@@ -1109,7 +1109,7 @@ class TestDescendantArgumentParser(unittest.TestCase):
         self.assertEqual(args.descendant_depth, 'all')
 
     def test_parser_relationship_options(self):
-        """Test parser with relationship traversal options"""
+        """PARSING-09: Test parser with relationship traversal options"""
         from jira_extractor.cli import create_parser
         
         parser = create_parser()
@@ -1127,7 +1127,7 @@ class TestDescendantArgumentParser(unittest.TestCase):
         self.assertTrue(args.include_remote_links)
 
     def test_parser_descendant_defaults(self):
-        """Test parser defaults for descendant options"""
+        """PARSING-10: Test parser defaults for descendant options"""
         from jira_extractor.cli import create_parser
         
         parser = create_parser()
@@ -1150,7 +1150,7 @@ class TestMainFunctionDescendants(unittest.TestCase):
     @patch('jira_extractor.cli.JiraClient')
     @patch('jira_extractor.cli.write_multiple_issues')
     def test_main_descendant_extraction_subtasks(self, mock_write_multiple, mock_jira_client, mock_create_parser):
-        """Test main function with descendant extraction including subtasks"""
+        """DESCENDANT-04: Test main function with descendant extraction including subtasks"""
         from jira_extractor.cli import main
         
         # Setup parser mock
@@ -1226,7 +1226,7 @@ class TestMainFunctionDescendants(unittest.TestCase):
     @patch('jira_extractor.cli.JiraClient')
     @patch('jira_extractor.cli.write_multiple_issues')
     def test_main_descendant_extraction_unlimited_depth(self, mock_write_multiple, mock_jira_client, mock_create_parser):
-        """Test main function with unlimited depth descendant extraction"""
+        """DESCENDANT-05: Test main function with unlimited depth descendant extraction"""
         from jira_extractor.cli import main
         
         # Setup parser mock
@@ -1284,7 +1284,7 @@ class TestMainFunctionDescendants(unittest.TestCase):
     @patch('jira_extractor.cli.JiraClient')
     @patch('sys.stderr', new_callable=io.StringIO)
     def test_main_descendant_no_issues_extracted(self, mock_stderr, mock_jira_client, mock_create_parser):
-        """Test main function when no issues are extracted"""
+        """DESCENDANT-06: Test main function when no issues are extracted"""
         from jira_extractor.cli import main
         
         # Setup parser mock
@@ -1323,7 +1323,7 @@ class TestMainFunctionDescendants(unittest.TestCase):
     @patch('jira_extractor.cli.JiraClient')
     @patch('jira_extractor.cli.write_output')
     def test_main_single_issue_mode_fallback(self, mock_write_output, mock_jira_client, mock_create_parser):
-        """Test main function falls back to single issue mode when no descendant options"""
+        """DESCENDANT-07: Test main function falls back to single issue mode when no descendant options"""
         # Setup parser mock
         mock_parser = Mock()
         mock_create_parser.return_value = mock_parser
@@ -1364,7 +1364,7 @@ class TestMainFunctionDescendants(unittest.TestCase):
 
     @patch('jira_extractor.cli.create_parser')
     def test_main_invalid_depth_parameter(self, mock_create_parser):
-        """Test main function with invalid depth parameter"""
+        """DESCENDANT-08: Test main function with invalid depth parameter"""
         from jira_extractor.cli import main
         
         # Setup parser mock

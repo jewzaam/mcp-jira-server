@@ -27,7 +27,7 @@ class TestJiraClient(unittest.TestCase):
         self.test_password = "testpass"
     
     def test_init_basic_auth(self):
-        """Test JiraClient initialization with basic authentication"""
+        """AUTH-10: Test JiraClient initialization with basic authentication"""
         client = JiraClient(
             self.base_url,
             username=self.test_username,
@@ -39,7 +39,7 @@ class TestJiraClient(unittest.TestCase):
         self.assertIsInstance(client.session.auth, HTTPBasicAuth)
     
     def test_init_token_auth(self):
-        """Test JiraClient initialization with API token authentication"""
+        """AUTH-11: Test JiraClient initialization with API token authentication"""
         client = JiraClient(
             self.base_url,
             username=self.test_username,
@@ -49,7 +49,7 @@ class TestJiraClient(unittest.TestCase):
         self.assertIsInstance(client.session.auth, HTTPBasicAuth)
     
     def test_init_bearer_auth(self):
-        """Test JiraClient initialization with Bearer token authentication"""
+        """AUTH-12: Test JiraClient initialization with Bearer token authentication"""
         client = JiraClient(
             self.base_url,
             bearer_token=self.test_token
@@ -62,14 +62,14 @@ class TestJiraClient(unittest.TestCase):
         )
     
     def test_init_no_auth(self):
-        """Test JiraClient initialization without authentication"""
+        """AUTH-13: Test JiraClient initialization without authentication"""
         client = JiraClient(self.base_url)
         
         self.assertIsNone(client.session.auth)
         self.assertNotIn('Authorization', client.session.headers)
     
     def test_init_url_normalization(self):
-        """Test URL normalization during initialization"""
+        """URL-04: Test URL normalization during initialization"""
         # Test with trailing slash
         client = JiraClient(f"{self.base_url}/")
         self.assertEqual(client.base_url, self.base_url)
@@ -79,18 +79,18 @@ class TestJiraClient(unittest.TestCase):
         self.assertEqual(client.base_url, "test.jira.com")
     
     def test_setup_auth_basic_missing_credentials(self):
-        """Test basic auth setup with missing credentials"""
+        """AUTH-14: Test basic auth setup with missing credentials"""
         with self.assertRaises(ValueError) as cm:
             JiraClient(self.base_url, username=self.test_username)
         self.assertIn("Authentication parameters are invalid", str(cm.exception))
     
     def test_setup_auth_token_missing_credentials(self):
-        """Test token auth setup with missing credentials"""
+        """AUTH-15: Test token auth setup with missing credentials"""
         with self.assertRaises(ValueError):
             JiraClient("https://jira.example.com", username="testuser")
 
     def test_get_field_by_name_success(self):
-        """Test successful field lookup by name"""
+        """FIELD-MGMT-01: Test successful field lookup by name"""
         client = JiraClient("https://jira.example.com")
         
         # Mock successful response
@@ -109,7 +109,7 @@ class TestJiraClient(unittest.TestCase):
                 self.assertEqual(field['name'], "Parent Link")
             
     def test_get_field_by_name_not_found(self):
-        """Test field lookup when field doesn't exist"""
+        """FIELD-MGMT-02: Test field lookup when field doesn't exist"""
         client = JiraClient("https://jira.example.com")
         
         # Mock response with fields that don't match
@@ -124,7 +124,7 @@ class TestJiraClient(unittest.TestCase):
             self.assertIsNone(field)
             
     def test_get_field_by_name_caching(self):
-        """Test that field lookup results are cached"""
+        """FIELD-MGMT-03: Test that field lookup results are cached"""
         client = JiraClient("https://jira.example.com")
         
         mock_fields = [
@@ -142,7 +142,7 @@ class TestJiraClient(unittest.TestCase):
             self.assertEqual(field1, field2)
             
     def test_get_field_by_name_error_handling(self):
-        """Test field lookup with API error"""
+        """FIELD-MGMT-04: Test field lookup with API error"""
         client = JiraClient("https://jira.example.com")
         
         with patch.object(client, '_make_api_request', side_effect=Exception("API Error")):
@@ -151,7 +151,7 @@ class TestJiraClient(unittest.TestCase):
             self.assertIsNone(field)
 
     def test_get_parent_link_children_success(self):
-        """Test successful parent link children lookup"""
+        """FIELD-MGMT-05: Test successful parent link children lookup"""
         client = JiraClient("https://jira.example.com")
         
         # Mock successful search response
@@ -172,7 +172,7 @@ class TestJiraClient(unittest.TestCase):
             self.assertIn("CHILD-3", children)
             
     def test_get_parent_link_children_no_results(self):
-        """Test parent link children lookup with no results"""
+        """FIELD-MGMT-06: Test parent link children lookup with no results"""
         client = JiraClient("https://jira.example.com")
         
         # Mock empty response
@@ -184,7 +184,7 @@ class TestJiraClient(unittest.TestCase):
             self.assertEqual(len(children), 0)
             
     def test_get_parent_link_children_error_handling(self):
-        """Test parent link children lookup with error"""
+        """FIELD-MGMT-07: Test parent link children lookup with error"""
         client = JiraClient("https://jira.example.com")
         
         with patch.object(client, '_make_api_request', side_effect=Exception("Search Error")):
@@ -193,7 +193,7 @@ class TestJiraClient(unittest.TestCase):
             self.assertEqual(len(children), 0)
 
     def test_get_related_issue_keys_parent_links(self):
-        """Test _get_related_issue_keys with parent link processing"""
+        """FIELD-MGMT-08: Test _get_related_issue_keys with parent link processing"""
         client = JiraClient("https://jira.example.com")
         
         # Mock issue data with parent link custom field
@@ -230,7 +230,7 @@ class TestJiraClient(unittest.TestCase):
             self.assertIn("CHILD-2", related_keys)
 
     def test_get_related_issue_keys_parent_links_no_field(self):
-        """Test _get_related_issue_keys when parent link field not found"""
+        """FIELD-MGMT-09: Test _get_related_issue_keys when parent link field not found"""
         client = JiraClient("https://jira.example.com")
         
         issue_data = {
@@ -255,7 +255,7 @@ class TestJiraClient(unittest.TestCase):
             self.assertEqual(len(related_keys), 0)
 
     def test_get_related_issue_keys_parent_links_children_error(self):
-        """Test _get_related_issue_keys with error in children lookup"""
+        """FIELD-MGMT-10: Test _get_related_issue_keys with error in children lookup"""
         client = JiraClient("https://jira.example.com")
         
         issue_data = {
@@ -283,7 +283,7 @@ class TestJiraClient(unittest.TestCase):
             self.assertEqual(len(related_keys), 0)
 
     def test_get_related_issue_keys_remote_links_error(self):
-        """Test _get_related_issue_keys with remote links error handling"""
+        """RELATIONSHIPS-01: Test _get_related_issue_keys with remote links error handling"""
         client = JiraClient("https://jira.example.com")
         
         issue_data = {
@@ -307,7 +307,7 @@ class TestJiraClient(unittest.TestCase):
 
     @patch('jira_extractor.client.requests.Session.get')
     def test_get_issue_success(self, mock_get):
-        """Test successful issue retrieval"""
+        """ISSUE-RETRIEVAL-01: Test successful issue retrieval"""
         # Setup mock response
         mock_response = Mock()
         mock_response.status_code = 200
@@ -331,7 +331,7 @@ class TestJiraClient(unittest.TestCase):
     
     @patch('jira_extractor.client.requests.Session.get')
     def test_get_issue_with_expand(self, mock_get):
-        """Test issue retrieval with expand parameter"""
+        """ISSUE-RETRIEVAL-02: Test issue retrieval with expand parameter"""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"key": self.test_issue_key}
@@ -346,7 +346,7 @@ class TestJiraClient(unittest.TestCase):
     
     @patch('jira_extractor.client.requests.Session.get')
     def test_get_issue_401_error(self, mock_get):
-        """Test issue retrieval with 401 authentication error"""
+        """AUTH-16: Test issue retrieval with 401 authentication error"""
         mock_response = Mock()
         mock_response.status_code = 401
         mock_response.headers = {}
@@ -360,7 +360,7 @@ class TestJiraClient(unittest.TestCase):
     
     @patch('jira_extractor.client.requests.Session.get')
     def test_get_issue_403_error(self, mock_get):
-        """Test issue retrieval with 403 access denied error"""
+        """AUTH-17: Test issue retrieval with 403 access denied error"""
         mock_response = Mock()
         mock_response.status_code = 403
         mock_response.headers = {}
@@ -375,7 +375,7 @@ class TestJiraClient(unittest.TestCase):
     
     @patch('jira_extractor.client.requests.Session.get')
     def test_get_issue_404_error(self, mock_get):
-        """Test issue retrieval with 404 not found error"""
+        """ISSUE-RETRIEVAL-03: Test issue retrieval with 404 not found error"""
         mock_response = Mock()
         mock_response.status_code = 404
         mock_response.headers = {}
@@ -389,7 +389,7 @@ class TestJiraClient(unittest.TestCase):
     
     @patch('jira_extractor.client.requests.Session.get')
     def test_get_issue_http_error(self, mock_get):
-        """Test issue retrieval with general HTTP error"""
+        """ISSUE-RETRIEVAL-04: Test issue retrieval with general HTTP error"""
         mock_response = Mock()
         mock_response.status_code = 500
         mock_response.headers = {}
@@ -403,7 +403,7 @@ class TestJiraClient(unittest.TestCase):
     
     @patch('jira_extractor.client.requests.Session.get')
     def test_test_connection_success(self, mock_get):
-        """Test successful connection test"""
+        """AUTH-18: Test successful connection test"""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -421,7 +421,7 @@ class TestJiraClient(unittest.TestCase):
     
     @patch('jira_extractor.client.requests.Session.get')
     def test_test_connection_401_error(self, mock_get):
-        """Test connection test with authentication failure"""
+        """AUTH-19: Test connection test with authentication failure"""
         mock_response = Mock()
         mock_response.status_code = 401
         mock_get.return_value = mock_response
@@ -436,7 +436,7 @@ class TestJiraClient(unittest.TestCase):
     @patch('jira_extractor.client.requests.Session.get')
     @patch('jira_extractor.client.logging')
     def test_debug_logging(self, mock_logging, mock_get):
-        """Test that debug information is logged correctly"""
+        """LOGGING-03: Test that debug information is logged correctly"""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"key": self.test_issue_key}
@@ -458,7 +458,7 @@ class TestJiraClient(unittest.TestCase):
 
     @patch('jira_extractor.client.requests.Session.get')
     def test_get_remote_links_success(self, mock_get):
-        """Test successful remote links retrieval"""
+        """ISSUE-RETRIEVAL-05: Test successful remote links retrieval"""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = [
@@ -483,7 +483,7 @@ class TestJiraClient(unittest.TestCase):
 
     @patch('jira_extractor.client.requests.Session.get')
     def test_get_remote_links_404_empty_result(self, mock_get):
-        """Test remote links retrieval with 404 returns empty list"""
+        """ISSUE-RETRIEVAL-06: Test remote links retrieval with 404 returns empty list"""
         mock_response = Mock()
         mock_response.status_code = 404
         mock_get.return_value = mock_response
@@ -495,7 +495,7 @@ class TestJiraClient(unittest.TestCase):
 
     @patch('jira_extractor.client.requests.Session.get')
     def test_get_remote_links_403_error(self, mock_get):
-        """Test remote links retrieval with 403 access denied error"""
+        """ISSUE-RETRIEVAL-07: Test remote links retrieval with 403 access denied error"""
         mock_response = Mock()
         mock_response.status_code = 403
         mock_get.return_value = mock_response
@@ -509,7 +509,7 @@ class TestJiraClient(unittest.TestCase):
 
     @patch('jira_extractor.client.JiraClient.get_issue')
     def test_get_descendants_single_issue_depth_zero(self, mock_get_issue):
-        """Test get_descendants with depth 0 returns only target issue"""
+        """DESCENDANT-09: Test get_descendants with depth 0 returns only target issue"""
         mock_get_issue.return_value = {
             "key": self.test_issue_key,
             "fields": {
@@ -529,7 +529,7 @@ class TestJiraClient(unittest.TestCase):
 
     @patch('jira_extractor.client.JiraClient.get_issue')
     def test_get_descendants_with_subtasks(self, mock_get_issue):
-        """Test get_descendants with subtasks traversal"""
+        """DESCENDANT-10: Test get_descendants with subtasks traversal"""
         parent_issue = {
             "key": "PARENT-1",
             "fields": {
@@ -577,7 +577,7 @@ class TestJiraClient(unittest.TestCase):
 
     @patch('jira_extractor.client.JiraClient.get_issue')
     def test_get_descendants_with_issue_links(self, mock_get_issue):
-        """Test get_descendants with issue links traversal"""
+        """DESCENDANT-11: Test get_descendants with issue links traversal"""
         source_issue = {
             "key": "SOURCE-1",
             "fields": {
@@ -624,7 +624,7 @@ class TestJiraClient(unittest.TestCase):
     @patch('jira_extractor.client.JiraClient.get_remote_links')
     @patch('jira_extractor.client.JiraClient.get_issue')
     def test_get_descendants_with_remote_links(self, mock_get_issue, mock_get_remote_links):
-        """Test get_descendants with remote links included"""
+        """DESCENDANT-12: Test get_descendants with remote links included"""
         test_issue = {
             "key": self.test_issue_key,
             "fields": {
@@ -646,7 +646,7 @@ class TestJiraClient(unittest.TestCase):
 
     @patch('jira_extractor.client.JiraClient.get_issue')
     def test_get_descendants_unlimited_depth(self, mock_get_issue):
-        """Test get_descendants with unlimited depth (-1)"""
+        """DESCENDANT-13: Test get_descendants with unlimited depth (-1)"""
         parent_issue = {
             "key": "PARENT-1",
             "fields": {
@@ -692,7 +692,7 @@ class TestJiraClient(unittest.TestCase):
 
     @patch('jira_extractor.client.JiraClient.get_issue')
     def test_get_descendants_error_handling(self, mock_get_issue):
-        """Test get_descendants continues processing when one issue fails"""
+        """DESCENDANT-14: Test get_descendants continues processing when one issue fails"""
         def mock_get_issue_side_effect(issue_key, expand=None):
             if issue_key == "PARENT-1":
                 return {
@@ -726,7 +726,7 @@ class TestJiraClient(unittest.TestCase):
         self.assertNotIn("CHILD-1", result)
 
     def test_get_related_issue_keys_subtasks(self):
-        """Test _get_related_issue_keys extracts subtask relationships"""
+        """RELATIONSHIPS-02: Test _get_related_issue_keys extracts subtask relationships"""
         issue_data = {
             "fields": {
                 "subtasks": [{"key": "SUB-1"}, {"key": "SUB-2"}],
@@ -746,7 +746,7 @@ class TestJiraClient(unittest.TestCase):
         self.assertEqual(len(result), 3)
 
     def test_get_related_issue_keys_issue_links(self):
-        """Test _get_related_issue_keys extracts issue links"""
+        """RELATIONSHIPS-03: Test _get_related_issue_keys extracts issue links"""
         issue_data = {
             "fields": {
                 "subtasks": [],
@@ -774,7 +774,7 @@ class TestJiraClient(unittest.TestCase):
 
     @patch('jira_extractor.client.JiraClient.get_remote_links')
     def test_get_related_issue_keys_remote_links(self, mock_get_remote_links):
-        """Test _get_related_issue_keys processes remote links"""
+        """RELATIONSHIPS-04: Test _get_related_issue_keys processes remote links"""
         issue_data = {
             "fields": {
                 "subtasks": [],
@@ -793,7 +793,7 @@ class TestJiraClient(unittest.TestCase):
         mock_get_remote_links.assert_called_once_with("TEST-1")
 
     def test_get_related_issue_keys_no_relationships(self):
-        """Test _get_related_issue_keys with no relationships enabled"""
+        """RELATIONSHIPS-05: Test _get_related_issue_keys with no relationships enabled"""
         issue_data = {
             "fields": {
                 "subtasks": [{"key": "SUB-1"}],
@@ -809,7 +809,7 @@ class TestJiraClient(unittest.TestCase):
         self.assertEqual(len(result), 0)
 
     def test_get_descendants_with_circular_references(self):
-        """Test get_descendants handles circular references correctly"""
+        """DESCENDANT-15: Test get_descendants handles circular references correctly"""
         client = JiraClient("https://jira.example.com")
         
         # Mock issue data with circular references
@@ -853,7 +853,7 @@ class TestJiraClient(unittest.TestCase):
             self.assertEqual(len([k for k in descendants.keys() if not k.startswith('_')]), 2)
 
     def test_get_descendants_with_parent_links_integration(self):
-        """Test get_descendants with parent links enabled (integration test)"""
+        """RELATIONSHIPS-06: Test get_descendants with parent links enabled (integration test)"""
         client = JiraClient("https://jira.example.com")
         
         # Mock issue data
