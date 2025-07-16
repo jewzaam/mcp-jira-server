@@ -1324,9 +1324,7 @@ class TestMainFunctionDescendants(unittest.TestCase):
     @patch('jira_extractor.cli.write_output')
     def test_main_single_issue_mode_fallback(self, mock_write_output, mock_jira_client, mock_create_parser):
         """Test main function falls back to single issue mode when no descendant options"""
-        from jira_extractor.cli import main
-        
-        # Setup parser mock with no descendant options
+        # Setup parser mock
         mock_parser = Mock()
         mock_create_parser.return_value = mock_parser
         

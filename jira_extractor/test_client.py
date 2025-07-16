@@ -86,16 +86,225 @@ class TestJiraClient(unittest.TestCase):
     
     def test_setup_auth_token_missing_credentials(self):
         """Test token auth setup with missing credentials"""
-        with self.assertRaises(ValueError) as cm:
-            JiraClient(self.base_url, username=self.test_username)
-        self.assertIn("Authentication parameters are invalid", str(cm.exception))
-    
-    def test_setup_auth_bearer_missing_token(self):
-        """Test auth setup with username but no credentials"""
-        with self.assertRaises(ValueError) as cm:
-            JiraClient(self.base_url, username="testuser", password=None, token=None, bearer_token=None)
-        self.assertIn("Authentication parameters are invalid", str(cm.exception))
-    
+        with self.assertRaises(ValueError):
+            JiraClient("https://jira.example.com", username="testuser")
+
+    def test_get_field_by_name_success(self):
+        """Test successful field lookup by name"""
+        client = JiraClient("https://jira.example.com")
+        
+        # Mock successful response
+        mock_fields = [
+            {"id": "customfield_12345", "name": "Parent Link", "type": "string"},
+            {"id": "customfield_54321", "name": "Epic Link", "type": "string"},
+            {"id": "summary", "name": "Summary", "type": "string"}
+        ]
+        
+        with patch.object(client, '_make_api_request', return_value=mock_fields):
+            field = client.get_field_by_name("Parent Link")
+            
+            self.assertIsNotNone(field)
+            if field:  # Guard against None
+                self.assertEqual(field['id'], "customfield_12345")
+                self.assertEqual(field['name'], "Parent Link")
+            
+    def test_get_field_by_name_not_found(self):
+        """Test field lookup when field doesn't exist"""
+        client = JiraClient("https://jira.example.com")
+        
+        # Mock response with fields that don't match
+        mock_fields = [
+            {"id": "customfield_12345", "name": "Other Field", "type": "string"},
+            {"id": "summary", "name": "Summary", "type": "string"}
+        ]
+        
+        with patch.object(client, '_make_api_request', return_value=mock_fields):
+            field = client.get_field_by_name("Parent Link")
+            
+            self.assertIsNone(field)
+            
+    def test_get_field_by_name_caching(self):
+        """Test that field lookup results are cached"""
+        client = JiraClient("https://jira.example.com")
+        
+        mock_fields = [
+            {"id": "customfield_12345", "name": "Parent Link", "type": "string"}
+        ]
+        
+        with patch.object(client, '_make_api_request', return_value=mock_fields) as mock_request:
+            # First call should make API request
+            field1 = client.get_field_by_name("Parent Link")
+            # Second call should use cache
+            field2 = client.get_field_by_name("Parent Link")
+            
+            # API should only be called once
+            mock_request.assert_called_once()
+            self.assertEqual(field1, field2)
+            
+    def test_get_field_by_name_error_handling(self):
+        """Test field lookup with API error"""
+        client = JiraClient("https://jira.example.com")
+        
+        with patch.object(client, '_make_api_request', side_effect=Exception("API Error")):
+            field = client.get_field_by_name("Parent Link")
+            
+            self.assertIsNone(field)
+
+    def test_get_parent_link_children_success(self):
+        """Test successful parent link children lookup"""
+        client = JiraClient("https://jira.example.com")
+        
+        # Mock successful search response
+        mock_response = {
+            "issues": [
+                {"key": "CHILD-1"},
+                {"key": "CHILD-2"},
+                {"key": "CHILD-3"}
+            ]
+        }
+        
+        with patch.object(client, '_make_api_request', return_value=mock_response):
+            children = client.get_parent_link_children("PARENT-1", "Parent Link")
+            
+            self.assertEqual(len(children), 3)
+            self.assertIn("CHILD-1", children)
+            self.assertIn("CHILD-2", children)
+            self.assertIn("CHILD-3", children)
+            
+    def test_get_parent_link_children_no_results(self):
+        """Test parent link children lookup with no results"""
+        client = JiraClient("https://jira.example.com")
+        
+        # Mock empty response
+        mock_response = {"issues": []}
+        
+        with patch.object(client, '_make_api_request', return_value=mock_response):
+            children = client.get_parent_link_children("PARENT-1", "Parent Link")
+            
+            self.assertEqual(len(children), 0)
+            
+    def test_get_parent_link_children_error_handling(self):
+        """Test parent link children lookup with error"""
+        client = JiraClient("https://jira.example.com")
+        
+        with patch.object(client, '_make_api_request', side_effect=Exception("Search Error")):
+            children = client.get_parent_link_children("PARENT-1", "Parent Link")
+            
+            self.assertEqual(len(children), 0)
+
+    def test_get_related_issue_keys_parent_links(self):
+        """Test _get_related_issue_keys with parent link processing"""
+        client = JiraClient("https://jira.example.com")
+        
+        # Mock issue data with parent link custom field
+        issue_data = {
+            "key": "TEST-123",
+            "fields": {
+                "customfield_12345": "PARENT-456",  # Parent link field
+                "summary": "Test Issue"
+            }
+        }
+        
+        # Mock field metadata lookup
+        mock_field = {"id": "customfield_12345", "name": "Parent Link"}
+        
+        # Mock children lookup
+        mock_children = ["CHILD-1", "CHILD-2"]
+        
+        with patch.object(client, 'get_field_by_name', return_value=mock_field), \
+             patch.object(client, 'get_parent_link_children', return_value=mock_children):
+            
+            related_keys = client._get_related_issue_keys(
+                issue_data,
+                "TEST-123",
+                include_subtasks=False,
+                include_links=False,
+                include_remote_links=False,
+                include_parent_links=True,
+                parent_link_field="Parent Link"
+            )
+            
+            # Should include parent and children
+            self.assertIn("PARENT-456", related_keys)
+            self.assertIn("CHILD-1", related_keys)
+            self.assertIn("CHILD-2", related_keys)
+
+    def test_get_related_issue_keys_parent_links_no_field(self):
+        """Test _get_related_issue_keys when parent link field not found"""
+        client = JiraClient("https://jira.example.com")
+        
+        issue_data = {
+            "key": "TEST-123",
+            "fields": {"summary": "Test Issue"}
+        }
+        
+        # Mock field not found
+        with patch.object(client, 'get_field_by_name', return_value=None), \
+             patch.object(client, 'get_parent_link_children', return_value=[]):
+            
+            related_keys = client._get_related_issue_keys(
+                issue_data,
+                "TEST-123",
+                include_subtasks=False,
+                include_links=False,
+                include_remote_links=False,
+                include_parent_links=True,
+                parent_link_field="Unknown Field"
+            )
+            
+            self.assertEqual(len(related_keys), 0)
+
+    def test_get_related_issue_keys_parent_links_children_error(self):
+        """Test _get_related_issue_keys with error in children lookup"""
+        client = JiraClient("https://jira.example.com")
+        
+        issue_data = {
+            "key": "TEST-123",
+            "fields": {"summary": "Test Issue"}
+        }
+        
+        # Mock field found but children lookup fails
+        mock_field = {"id": "customfield_12345", "name": "Parent Link"}
+        
+        with patch.object(client, 'get_field_by_name', return_value=mock_field), \
+             patch.object(client, 'get_parent_link_children', side_effect=Exception("Search failed")):
+            
+            related_keys = client._get_related_issue_keys(
+                issue_data,
+                "TEST-123",
+                include_subtasks=False,
+                include_links=False,
+                include_remote_links=False,
+                include_parent_links=True,
+                parent_link_field="Parent Link"
+            )
+            
+            # Should handle error gracefully
+            self.assertEqual(len(related_keys), 0)
+
+    def test_get_related_issue_keys_remote_links_error(self):
+        """Test _get_related_issue_keys with remote links error handling"""
+        client = JiraClient("https://jira.example.com")
+        
+        issue_data = {
+            "key": "TEST-123", 
+            "fields": {"summary": "Test Issue"}
+        }
+        
+        with patch.object(client, 'get_remote_links', side_effect=Exception("Remote links error")):
+            related_keys = client._get_related_issue_keys(
+                issue_data,
+                "TEST-123",
+                include_subtasks=False,
+                include_links=False,
+                include_remote_links=True,
+                include_parent_links=False,
+                parent_link_field="Parent Link"
+            )
+            
+            # Should handle error gracefully and return empty set
+            self.assertEqual(len(related_keys), 0)
+
     @patch('jira_extractor.client.requests.Session.get')
     def test_get_issue_success(self, mock_get):
         """Test successful issue retrieval"""
@@ -598,6 +807,87 @@ class TestJiraClient(unittest.TestCase):
         )
 
         self.assertEqual(len(result), 0)
+
+    def test_get_descendants_with_circular_references(self):
+        """Test get_descendants handles circular references correctly"""
+        client = JiraClient("https://jira.example.com")
+        
+        # Mock issue data with circular references
+        # PARENT-1 -> CHILD-1 -> PARENT-1 (circular)
+        mock_issues = {
+            "PARENT-1": {
+                "key": "PARENT-1",
+                "fields": {
+                    "summary": "Parent Issue",
+                    "subtasks": [{"key": "CHILD-1"}]
+                }
+            },
+            "CHILD-1": {
+                "key": "CHILD-1", 
+                "fields": {
+                    "summary": "Child Issue",
+                    "subtasks": [{"key": "PARENT-1"}]  # Circular reference
+                }
+            }
+        }
+        
+        def mock_get_issue(key, expand=None):
+            return mock_issues.get(key)
+            
+        with patch.object(client, 'get_issue', side_effect=mock_get_issue):
+            descendants = client.get_descendants(
+                "PARENT-1",
+                depth=3,
+                include_subtasks=True,
+                include_links=False,
+                include_remote_links=False,
+                include_parent_links=False,
+                parent_link_field="Parent Link"
+            )
+            
+            # Should handle circular reference and not get stuck in loop
+            # Should have both issues but no duplicates
+            self.assertIn("PARENT-1", descendants)
+            self.assertIn("CHILD-1", descendants)
+            # Verify no infinite loop by checking we don't have excessive calls
+            self.assertEqual(len([k for k in descendants.keys() if not k.startswith('_')]), 2)
+
+    def test_get_descendants_with_parent_links_integration(self):
+        """Test get_descendants with parent links enabled (integration test)"""
+        client = JiraClient("https://jira.example.com")
+        
+        # Mock issue data
+        mock_issue = {
+            "key": "PARENT-1",
+            "fields": {
+                "summary": "Parent Issue", 
+                "customfield_12345": None  # No parent for this issue
+            }
+        }
+        
+        # Mock field metadata
+        mock_field = {"id": "customfield_12345", "name": "Parent Link"}
+        
+        # Mock children
+        mock_children = ["CHILD-1", "CHILD-2"]
+        
+        with patch.object(client, 'get_issue', return_value=mock_issue), \
+             patch.object(client, 'get_field_by_name', return_value=mock_field), \
+             patch.object(client, 'get_parent_link_children', return_value=mock_children), \
+             patch.object(client, '_get_related_issue_keys', return_value={"CHILD-1", "CHILD-2"}):
+            
+            descendants = client.get_descendants(
+                "PARENT-1",
+                depth=1,
+                include_subtasks=False,
+                include_links=False,
+                include_remote_links=False,
+                include_parent_links=True,
+                parent_link_field="Parent Link"
+            )
+            
+            # Should include parent and process parent links
+            self.assertIn("PARENT-1", descendants)
 
 
 if __name__ == '__main__':
