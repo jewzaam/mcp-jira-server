@@ -337,6 +337,10 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
             mock_parse_args.return_value = mock_args
             
             main()
@@ -377,6 +381,10 @@ class TestMainFunction(unittest.TestCase):
             mock_args.username = None
             mock_args.password = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -419,6 +427,10 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
             mock_parse_args.return_value = mock_args
             
             main()
@@ -447,6 +459,10 @@ class TestMainFunction(unittest.TestCase):
             mock_args = Mock()
             mock_args.url = 'bad-url'
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -492,6 +508,10 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
             mock_parse_args.return_value = mock_args
             
             main()
@@ -545,6 +565,10 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
             mock_parse_args.return_value = mock_args
             
             main()
@@ -586,6 +610,10 @@ class TestMainFunction(unittest.TestCase):
             mock_args.username = None
             mock_args.password = 'secret'
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -628,6 +656,10 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -670,6 +702,10 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -712,6 +748,10 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -756,6 +796,10 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = True
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -801,6 +845,10 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -846,6 +894,10 @@ class TestMainFunction(unittest.TestCase):
             mock_args.overwrite = False
             mock_args.expand = None
             mock_args.debug = False
+            mock_args.descendant_depth = '0'
+            mock_args.include_subtasks = False
+            mock_args.include_links = False
+            mock_args.include_remote_links = False
             mock_parse_args.return_value = mock_args
             
             main()

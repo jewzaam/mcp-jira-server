@@ -174,7 +174,8 @@ class TestJiraClient(unittest.TestCase):
         
         with self.assertRaises(Exception) as cm:
             client.get_issue(self.test_issue_key)
-        self.assertIn(f"Access denied to issue {self.test_issue_key}", str(cm.exception))
+
+        self.assertIn(f"Access denied to Issue {self.test_issue_key}. Check permissions.", str(cm.exception))
     
     @patch('jira_extractor.client.requests.Session.get')
     def test_get_issue_404_error(self, mock_get):
@@ -220,7 +221,7 @@ class TestJiraClient(unittest.TestCase):
         result = client.test_connection()
         
         expected_url = f"{self.base_url}/rest/api/2/myself"
-        mock_get.assert_called_once_with(expected_url)
+        mock_get.assert_called_once_with(expected_url, params={})
         self.assertEqual(result["displayName"], "Test User")
     
     @patch('jira_extractor.client.requests.Session.get')
@@ -235,6 +236,7 @@ class TestJiraClient(unittest.TestCase):
         
         with self.assertRaises(Exception) as cm:
             client.test_connection()
+
         self.assertIn("Authentication failed", str(cm.exception))
     
     @patch('jira_extractor.client.requests.Session.get')
@@ -255,7 +257,7 @@ class TestJiraClient(unittest.TestCase):
         debug_calls = [call[0][0] for call in mock_logging.debug.call_args_list]
         
         # Check that URL and parameters are logged
-        self.assertTrue(any("Fetching issue from:" in call for call in debug_calls))
+        self.assertTrue(any("Making API request to:" in call for call in debug_calls))
         self.assertTrue(any("Query parameters:" in call for call in debug_calls))
         self.assertTrue(any("Response status:" in call for call in debug_calls))
         self.assertTrue(any("Response headers:" in call for call in debug_calls))

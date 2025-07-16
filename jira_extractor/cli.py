@@ -92,11 +92,11 @@ def write_output(data: Dict[str, Any], output_path: str, issue_key: str, overwri
         print(f"Metadata saved to {metadata_path}")
 
 
-def write_multiple_issues(issues: Dict[str, Dict[str, Any]], output_path: str, 
-                         overwrite: bool = False, expand: Optional[str] = None, 
-                         extraction_metadata: Optional[Dict[str, Any]] = None):
+def write_multiple_issues(issues: Dict[str, Dict[str, Any]], output_path: str,
+                          overwrite: bool = False, expand: Optional[str] = None,
+                          extraction_metadata: Optional[Dict[str, Any]] = None):
     """Write multiple issues and their relationships to output destination"""
-    
+
     if output_path in ['-', 'stdout']:
         # Output all issues as a single JSON object to stdout
         output_data = {
@@ -108,7 +108,7 @@ def write_multiple_issues(issues: Dict[str, Dict[str, Any]], output_path: str,
     else:
         # Output to directory - each issue in separate file
         os.makedirs(output_path, exist_ok=True)
-        
+
         # Track extraction summary
         extraction_summary = {
             "extraction_timestamp": datetime.now().isoformat(),
@@ -117,7 +117,7 @@ def write_multiple_issues(issues: Dict[str, Dict[str, Any]], output_path: str,
             "issue_keys": list(issues.keys()),
             "expand_parameter": expand
         }
-        
+
         # Write each issue to separate file
         for issue_key, issue_data in issues.items():
             file_path = os.path.join(output_path, f"{issue_key}.json")
@@ -157,7 +157,7 @@ def write_multiple_issues(issues: Dict[str, Dict[str, Any]], output_path: str,
         summary_path = os.path.join(output_path, "_extraction_summary.json")
         with open(summary_path, 'w', encoding='utf-8') as f:
             json.dump(extraction_summary, f, indent=2, ensure_ascii=False)
-        
+
         print(f"Extraction summary saved to {summary_path}")
         print(f"Total issues extracted: {len(issues)}")
 
@@ -173,11 +173,11 @@ Examples:
   %(prog)s -u https://issues.redhat.com -i RFE-7877 --bearer-token abc123
   %(prog)s -u https://issues.redhat.com -i RFE-7877 --username $USER --token abc123
   %(prog)s -u https://issues.redhat.com -i RFE-7877 --username $USER --password
-  
+
   # Descendant extraction with depth control
   %(prog)s -u https://issues.redhat.com -i RFE-7877 --descendant-depth 2 --include-subtasks --bearer-token abc123
   %(prog)s -u https://issues.redhat.com -i RFE-7877 --desc-depth all --include-links --username $USER --token abc123
-  
+
   # Multiple relationship types with file output
   %(prog)s -u https://issues.redhat.com -i RFE-7877 --descendant-depth 3 --include-subtasks --include-links -o ./output --bearer-token abc123
         """
@@ -208,13 +208,13 @@ Examples:
     # Relationship traversal options
     relationship_group = parser.add_argument_group('Relationship Traversal')
     relationship_group.add_argument('--descendant-depth', '--desc-depth', default='0',
-                                   help='Maximum descendant traversal depth: 0 (target only), N (N levels), or "all" (unlimited)')
+                                    help='Maximum descendant traversal depth: 0 (target only), N (N levels), or "all" (unlimited)')
     relationship_group.add_argument('--include-subtasks', action='store_true',
-                                   help='Include subtask relationships in traversal')
+                                    help='Include subtask relationships in traversal')
     relationship_group.add_argument('--include-links', action='store_true',
-                                   help='Include issue links in traversal')
+                                    help='Include issue links in traversal')
     relationship_group.add_argument('--include-remote-links', action='store_true',
-                                   help='Include remote links in traversal')
+                                    help='Include remote links in traversal')
 
     # Debug options
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
@@ -224,13 +224,13 @@ Examples:
 
 def parse_depth(depth_str: str) -> int:
     """Parse depth parameter into integer or -1 for unlimited
-    
+
     Args:
         depth_str: Depth string ('0', '1', '2', ..., 'all')
-        
+
     Returns:
         Non-negative integer for limited depth, -1 for unlimited depth
-        
+
     Raises:
         ValueError: If depth_str is invalid
     """
@@ -296,10 +296,10 @@ def main():
 
     # Determine if descendant extraction is requested
     has_descendant_options = (
-        descendant_depth > 0 or descendant_depth == -1 or 
-        args.include_subtasks or 
-        args.include_links or 
-        args.include_remote_links
+        (descendant_depth > 0 or descendant_depth == -1)
+        or args.include_subtasks
+        or args.include_links
+        or args.include_remote_links
     )
 
     try:
@@ -317,7 +317,7 @@ def main():
         if has_descendant_options:
             # Descendant extraction mode
             logging.info(f"Extracting issue {args.issue} with descendants (depth: {descendant_depth if descendant_depth != -1 else 'unlimited'})")
-            
+
             # Log extraction options
             if args.include_subtasks:
                 logging.info("Including subtask relationships")
@@ -325,35 +325,35 @@ def main():
                 logging.info("Including issue links")
             if args.include_remote_links:
                 logging.info("Including remote links")
-            
+
             # Fetch issue and descendants
             issues_data = client.get_descendants(
-                args.issue, 
+                args.issue,
                 depth=descendant_depth,
                 include_subtasks=args.include_subtasks,
                 include_links=args.include_links,
                 include_remote_links=args.include_remote_links,
                 expand=args.expand
             )
-            
+
             # Extract metadata and issues
             extraction_metadata = issues_data.pop("_extraction_metadata", {})
-            
+
             if not issues_data:
                 logging.warning("No issues were extracted")
                 sys.exit(1)
-            
+
             logging.info(f"Successfully extracted {len(issues_data)} issues")
-            
+
             # Write output
             write_multiple_issues(
-                issues_data, 
-                args.output, 
-                args.overwrite, 
+                issues_data,
+                args.output,
+                args.overwrite,
                 args.expand,
                 extraction_metadata
             )
-            
+
         else:
             # Single issue extraction mode (original behavior)
             logging.info(f"Fetching single issue: {args.issue}")

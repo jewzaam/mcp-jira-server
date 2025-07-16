@@ -71,34 +71,38 @@ class JiraClient:
         else:
             raise ValueError(f"Unsupported auth method: {auth_method}")
 
-    def _make_api_request(self, url: str, params: Optional[Dict[str, Any]] = None, 
-                         resource_name: str = "resource", 
-                         handle_404_as_empty: bool = False) -> Any:
+    def _make_api_request(self, url: str, params: Optional[Dict[str, Any]] = None,
+                          resource_name: str = "resource",
+                          handle_404_as_empty: bool = False) -> Any:
         """
         Make an API request with centralized error handling
-        
+
         Args:
             url: API endpoint URL
             params: Query parameters
             resource_name: Name of resource for error messages
             handle_404_as_empty: If True, return empty list for 404 errors
-            
+
         Returns:
             JSON response data or empty list for 404 when handle_404_as_empty=True
-            
+
         Raises:
             Exception: For authentication, permission, or HTTP errors
         """
         logging.debug(f"Making API request to: {url}")
         if params:
             logging.debug(f"Query parameters: {params}")
-        
+
         response = self.session.get(url, params=params or {})
-        
+
         # Log response details for debugging
         logging.debug(f"Response status: {response.status_code}")
-        logging.debug(f"Response headers: {dict(response.headers)}")
-        
+        try:
+            logging.debug(f"Response headers: {dict(response.headers)}")
+        except (TypeError, AttributeError):
+            # Handle case where headers might be a Mock in tests
+            logging.debug(f"Response headers: {response.headers}")
+
         # Handle common error cases
         if response.status_code == 401:
             raise Exception("Authentication failed. Please check your credentials.")
@@ -109,10 +113,10 @@ class JiraClient:
                 return []
             else:
                 raise Exception(f"{resource_name} not found.")
-        
+
         # Handle any other HTTP errors
         response.raise_for_status()
-        
+
         return response.json()
 
     def get_issue(self, issue_key: str, expand: Optional[str] = None) -> Dict[str, Any]:
@@ -135,7 +139,7 @@ class JiraClient:
             params['expand'] = expand
 
         return self._make_api_request(
-            url, 
+            url,
             params=params if params else None,
             resource_name=f"Issue {issue_key}"
         )
@@ -159,16 +163,16 @@ class JiraClient:
             Exception: If API request fails
         """
         url = urljoin(self.api_base, f'issue/{issue_key}/remotelink')
-        
+
         return self._make_api_request(
             url,
             resource_name=f"remote links for issue {issue_key}",
             handle_404_as_empty=True
         )
 
-    def get_descendants(self, issue_key: str, depth: int = 0, 
-                       include_subtasks: bool = False, include_links: bool = False,
-                       include_remote_links: bool = False, expand: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+    def get_descendants(self, issue_key: str, depth: int = 0,
+                        include_subtasks: bool = False, include_links: bool = False,
+                        include_remote_links: bool = False, expand: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
         """
         Fetch an issue and its descendants based on specified relationship types and depth
 
@@ -201,51 +205,51 @@ class JiraClient:
 
         while to_process:
             current_key, current_depth = to_process.pop(0)
-            
+
             # Skip if already processed
             if current_key in visited:
                 continue
-                
+
             visited.add(current_key)
             extraction_metadata["traversal_order"].append({
                 "issue_key": current_key,
                 "depth": current_depth
             })
-            
+
             logging.info(f"Processing issue {current_key} at depth {current_depth}")
-            
+
             try:
                 # Fetch the issue
                 issue_data = self.get_issue(current_key, expand=expand)
                 issues[current_key] = issue_data
-                
+
                 # Stop traversing deeper if we've reached the depth limit
                 if depth != -1 and current_depth >= depth:
                     continue
-                
+
                 # Collect related issues to process next
                 related_issues = self._get_related_issue_keys(
                     issue_data, current_key, include_subtasks, include_links, include_remote_links
                 )
-                
+
                 # Add related issues to processing queue
                 for related_key in related_issues:
                     if related_key not in visited:
                         to_process.append((related_key, current_depth + 1))
-                        
+
             except Exception as e:
                 logging.warning(f"Failed to process issue {current_key}: {e}")
                 # Continue processing other issues
                 continue
-        
+
         # Store extraction metadata in the result
         issues["_extraction_metadata"] = extraction_metadata
-        
+
         return issues
 
     def _get_related_issue_keys(self, issue_data: Dict[str, Any], current_key: str,
-                               include_subtasks: bool, include_links: bool, 
-                               include_remote_links: bool) -> Set[str]:
+                                include_subtasks: bool, include_links: bool,
+                                include_remote_links: bool) -> Set[str]:
         """
         Extract related issue keys from issue data based on relationship types
 
@@ -261,7 +265,7 @@ class JiraClient:
         """
         related_keys = set()
         fields = issue_data.get('fields', {})
-        
+
         # Process subtasks
         if include_subtasks:
             # Get subtasks (children)
@@ -271,7 +275,7 @@ class JiraClient:
                 if subtask_key:
                     related_keys.add(subtask_key)
                     logging.debug(f"Found subtask: {subtask_key}")
-            
+
             # Get parent issue
             parent = fields.get('parent')
             if parent:
@@ -279,7 +283,7 @@ class JiraClient:
                 if parent_key:
                     related_keys.add(parent_key)
                     logging.debug(f"Found parent: {parent_key}")
-        
+
         # Process issue links
         if include_links:
             issue_links = fields.get('issuelinks', [])
@@ -292,7 +296,7 @@ class JiraClient:
                         related_keys.add(inward_key)
                         link_type = link.get('type', {}).get('inward', 'related')
                         logging.debug(f"Found inward link ({link_type}): {inward_key}")
-                
+
                 outward_issue = link.get('outwardIssue')
                 if outward_issue:
                     outward_key = outward_issue.get('key')
@@ -300,7 +304,7 @@ class JiraClient:
                         related_keys.add(outward_key)
                         link_type = link.get('type', {}).get('outward', 'related')
                         logging.debug(f"Found outward link ({link_type}): {outward_key}")
-        
+
         # Process remote links (these don't lead to other JIRA issues, but we can fetch them for completeness)
         if include_remote_links:
             try:
@@ -309,5 +313,5 @@ class JiraClient:
                 # Note: Remote links don't contribute to related_keys since they're external
             except Exception as e:
                 logging.debug(f"Could not fetch remote links for {current_key}: {e}")
-        
+
         return related_keys
