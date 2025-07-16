@@ -323,7 +323,8 @@ class TestMainFunction(unittest.TestCase):
         
         # Setup mocks
         mock_client_instance = Mock()
-        mock_client_instance.get_issue.return_value = {"key": "TEST-123"}
+        mock_client_instance.get_issue.return_value = {"key": "TEST-123", "fields": {"summary": "Test Issue"}}
+        mock_client_instance.test_connection.return_value = {"displayName": "Test User"}
         mock_jira_client.return_value = mock_client_instance
         
         with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
@@ -342,6 +343,8 @@ class TestMainFunction(unittest.TestCase):
             mock_args.include_subtasks = False
             mock_args.include_links = False
             mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             main()
@@ -349,11 +352,13 @@ class TestMainFunction(unittest.TestCase):
             # Verify client creation
             mock_jira_client.assert_called_once_with(
                 'https://jira.example.com',
-                'bearer',
-                token='abc123'
+                username=None,
+                password=None,
+                token=None,
+                bearer_token='abc123'
             )
             
-            # Verify issue retrieval
+            # Verify issue retrieval (single issue mode)
             mock_client_instance.get_issue.assert_called_once_with('TEST-123', expand=None)
             
             # Verify output writing
@@ -432,6 +437,8 @@ class TestMainFunction(unittest.TestCase):
             mock_args.include_subtasks = False
             mock_args.include_links = False
             mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             main()
@@ -439,7 +446,10 @@ class TestMainFunction(unittest.TestCase):
             # Verify client creation with no auth
             mock_jira_client.assert_called_once_with(
                 'https://issues.redhat.com',
-                None
+                username=None,
+                password=None,
+                token=None,
+                bearer_token=None
             )
             
             # Verify no connection test was performed
@@ -513,6 +523,8 @@ class TestMainFunction(unittest.TestCase):
             mock_args.include_subtasks = False
             mock_args.include_links = False
             mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             main()
@@ -520,9 +532,10 @@ class TestMainFunction(unittest.TestCase):
             # Verify client creation with token auth
             mock_jira_client.assert_called_once_with(
                 'https://jira.example.com',
-                'token',
                 username='testuser',
-                token='abc123'
+                password=None,
+                token='abc123',
+                bearer_token=None
             )
             
             # Verify connection test was performed
@@ -570,6 +583,8 @@ class TestMainFunction(unittest.TestCase):
             mock_args.include_subtasks = False
             mock_args.include_links = False
             mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             main()
@@ -580,9 +595,10 @@ class TestMainFunction(unittest.TestCase):
             # Verify client creation with basic auth
             mock_jira_client.assert_called_once_with(
                 'https://jira.example.com',
-                'basic',
                 username='testuser',
-                password='prompted_password'
+                password='prompted_password',
+                token=None,
+                bearer_token=None
             )
             
             # Verify output was written
@@ -661,6 +677,8 @@ class TestMainFunction(unittest.TestCase):
             mock_args.include_subtasks = False
             mock_args.include_links = False
             mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -707,6 +725,8 @@ class TestMainFunction(unittest.TestCase):
             mock_args.include_subtasks = False
             mock_args.include_links = False
             mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -753,6 +773,8 @@ class TestMainFunction(unittest.TestCase):
             mock_args.include_subtasks = False
             mock_args.include_links = False
             mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -801,6 +823,8 @@ class TestMainFunction(unittest.TestCase):
             mock_args.include_subtasks = False
             mock_args.include_links = False
             mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -850,6 +874,8 @@ class TestMainFunction(unittest.TestCase):
             mock_args.include_subtasks = False
             mock_args.include_links = False
             mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             with self.assertRaises(SystemExit):
@@ -899,6 +925,8 @@ class TestMainFunction(unittest.TestCase):
             mock_args.include_subtasks = False
             mock_args.include_links = False
             mock_args.include_remote_links = False
+            mock_args.include_parent_links = False
+            mock_args.parent_link_field = 'Parent Link'
             mock_parse_args.return_value = mock_args
             
             main()
@@ -1144,6 +1172,8 @@ class TestMainFunctionDescendants(unittest.TestCase):
         mock_args.include_subtasks = True
         mock_args.include_links = False
         mock_args.include_remote_links = False
+        mock_args.include_parent_links = False
+        mock_args.parent_link_field = 'Parent Link'
         mock_parser.parse_args.return_value = mock_args
         
         # Setup client mock
@@ -1166,13 +1196,15 @@ class TestMainFunctionDescendants(unittest.TestCase):
         main()
         
         # Verify client creation and method calls
-        mock_jira_client.assert_called_once_with('https://jira.example.com', 'bearer', token='abc123')
+        mock_jira_client.assert_called_once_with('https://jira.example.com', username=None, password=None, token=None, bearer_token='abc123')
         mock_client_instance.get_descendants.assert_called_once_with(
             'PARENT-1',
             depth=1,
             include_subtasks=True,
             include_links=False,
             include_remote_links=False,
+            include_parent_links=False,
+            parent_link_field='Parent Link',
             expand=None
         )
         
@@ -1216,6 +1248,8 @@ class TestMainFunctionDescendants(unittest.TestCase):
         mock_args.include_subtasks = True
         mock_args.include_links = True
         mock_args.include_remote_links = False
+        mock_args.include_parent_links = False
+        mock_args.parent_link_field = 'Parent Link'
         mock_parser.parse_args.return_value = mock_args
         
         # Setup client mock
@@ -1241,6 +1275,8 @@ class TestMainFunctionDescendants(unittest.TestCase):
             include_subtasks=True,
             include_links=True,
             include_remote_links=False,
+            include_parent_links=False,
+            parent_link_field='Parent Link',
             expand='comments'
         )
 
@@ -1309,6 +1345,8 @@ class TestMainFunctionDescendants(unittest.TestCase):
         mock_args.include_subtasks = False
         mock_args.include_links = False
         mock_args.include_remote_links = False
+        mock_args.include_parent_links = False
+        mock_args.parent_link_field = 'Parent Link'
         mock_parser.parse_args.return_value = mock_args
         
         # Setup client mock

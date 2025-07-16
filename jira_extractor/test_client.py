@@ -30,7 +30,6 @@ class TestJiraClient(unittest.TestCase):
         """Test JiraClient initialization with basic authentication"""
         client = JiraClient(
             self.base_url,
-            auth_method="basic",
             username=self.test_username,
             password=self.test_password
         )
@@ -38,28 +37,22 @@ class TestJiraClient(unittest.TestCase):
         self.assertEqual(client.base_url, self.base_url)
         self.assertEqual(client.api_base, f"{self.base_url}/rest/api/2/")
         self.assertIsInstance(client.session.auth, HTTPBasicAuth)
-        self.assertEqual(client.session.auth.username, self.test_username)
-        self.assertEqual(client.session.auth.password, self.test_password)
     
     def test_init_token_auth(self):
         """Test JiraClient initialization with API token authentication"""
         client = JiraClient(
             self.base_url,
-            auth_method="token",
             username=self.test_username,
             token=self.test_token
         )
         
         self.assertIsInstance(client.session.auth, HTTPBasicAuth)
-        self.assertEqual(client.session.auth.username, self.test_username)
-        self.assertEqual(client.session.auth.password, self.test_token)
     
     def test_init_bearer_auth(self):
         """Test JiraClient initialization with Bearer token authentication"""
         client = JiraClient(
             self.base_url,
-            auth_method="bearer",
-            token=self.test_token
+            bearer_token=self.test_token
         )
         
         self.assertIsNone(client.session.auth)
@@ -70,7 +63,7 @@ class TestJiraClient(unittest.TestCase):
     
     def test_init_no_auth(self):
         """Test JiraClient initialization without authentication"""
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url)
         
         self.assertIsNone(client.session.auth)
         self.assertNotIn('Authorization', client.session.headers)
@@ -78,36 +71,30 @@ class TestJiraClient(unittest.TestCase):
     def test_init_url_normalization(self):
         """Test URL normalization during initialization"""
         # Test with trailing slash
-        client = JiraClient(f"{self.base_url}/", auth_method=None)
+        client = JiraClient(f"{self.base_url}/")
         self.assertEqual(client.base_url, self.base_url)
         
         # Test without scheme (should add https)
-        client = JiraClient("test.jira.com", auth_method=None)
+        client = JiraClient("test.jira.com")
         self.assertEqual(client.base_url, "test.jira.com")
     
     def test_setup_auth_basic_missing_credentials(self):
         """Test basic auth setup with missing credentials"""
         with self.assertRaises(ValueError) as cm:
-            JiraClient(self.base_url, auth_method="basic", username=self.test_username)
-        self.assertIn("Basic auth requires username and password", str(cm.exception))
+            JiraClient(self.base_url, username=self.test_username)
+        self.assertIn("Authentication parameters are invalid", str(cm.exception))
     
     def test_setup_auth_token_missing_credentials(self):
         """Test token auth setup with missing credentials"""
         with self.assertRaises(ValueError) as cm:
-            JiraClient(self.base_url, auth_method="token", username=self.test_username)
-        self.assertIn("Token auth requires username and token", str(cm.exception))
+            JiraClient(self.base_url, username=self.test_username)
+        self.assertIn("Authentication parameters are invalid", str(cm.exception))
     
     def test_setup_auth_bearer_missing_token(self):
-        """Test bearer auth setup with missing token"""
+        """Test auth setup with username but no credentials"""
         with self.assertRaises(ValueError) as cm:
-            JiraClient(self.base_url, auth_method="bearer")
-        self.assertIn("Bearer auth requires token", str(cm.exception))
-    
-    def test_setup_auth_unsupported_method(self):
-        """Test setup with unsupported authentication method"""
-        with self.assertRaises(ValueError) as cm:
-            JiraClient(self.base_url, auth_method="unsupported")
-        self.assertIn("Unsupported auth method: unsupported", str(cm.exception))
+            JiraClient(self.base_url, username="testuser", password=None, token=None, bearer_token=None)
+        self.assertIn("Authentication parameters are invalid", str(cm.exception))
     
     @patch('jira_extractor.client.requests.Session.get')
     def test_get_issue_success(self, mock_get):
@@ -122,7 +109,7 @@ class TestJiraClient(unittest.TestCase):
         mock_response.headers = {"Content-Type": "application/json"}
         mock_get.return_value = mock_response
         
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url)
         result = client.get_issue(self.test_issue_key)
         
         # Verify API call
@@ -142,7 +129,7 @@ class TestJiraClient(unittest.TestCase):
         mock_response.headers = {}
         mock_get.return_value = mock_response
         
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         client.get_issue(self.test_issue_key, expand="changelog,comments")
         
         expected_url = f"{self.base_url}/rest/api/2/issue/{self.test_issue_key}"
@@ -156,7 +143,7 @@ class TestJiraClient(unittest.TestCase):
         mock_response.headers = {}
         mock_get.return_value = mock_response
         
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         
         with self.assertRaises(Exception) as cm:
             client.get_issue(self.test_issue_key)
@@ -170,7 +157,7 @@ class TestJiraClient(unittest.TestCase):
         mock_response.headers = {}
         mock_get.return_value = mock_response
         
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         
         with self.assertRaises(Exception) as cm:
             client.get_issue(self.test_issue_key)
@@ -185,7 +172,7 @@ class TestJiraClient(unittest.TestCase):
         mock_response.headers = {}
         mock_get.return_value = mock_response
         
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         
         with self.assertRaises(Exception) as cm:
             client.get_issue(self.test_issue_key)
@@ -200,7 +187,7 @@ class TestJiraClient(unittest.TestCase):
         mock_response.raise_for_status.side_effect = requests.HTTPError("Server error")
         mock_get.return_value = mock_response
         
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         
         with self.assertRaises(requests.HTTPError):
             client.get_issue(self.test_issue_key)
@@ -216,8 +203,7 @@ class TestJiraClient(unittest.TestCase):
         }
         mock_get.return_value = mock_response
         
-        client = JiraClient(self.base_url, auth_method="basic", 
-                          username=self.test_username, password=self.test_password)
+        client = JiraClient(self.base_url, username=self.test_username, password=self.test_password)
         result = client.test_connection()
         
         expected_url = f"{self.base_url}/rest/api/2/myself"
@@ -231,8 +217,7 @@ class TestJiraClient(unittest.TestCase):
         mock_response.status_code = 401
         mock_get.return_value = mock_response
         
-        client = JiraClient(self.base_url, auth_method="basic",
-                          username=self.test_username, password="wrong_password")
+        client = JiraClient(self.base_url, username=self.test_username, password="wrong_password")
         
         with self.assertRaises(Exception) as cm:
             client.test_connection()
@@ -249,7 +234,7 @@ class TestJiraClient(unittest.TestCase):
         mock_response.headers = {"Content-Type": "application/json"}
         mock_get.return_value = mock_response
         
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         client.get_issue(self.test_issue_key, expand="comments")
         
         # Verify debug logging calls
@@ -279,7 +264,7 @@ class TestJiraClient(unittest.TestCase):
         ]
         mock_get.return_value = mock_response
 
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         result = client.get_remote_links(self.test_issue_key)
 
         expected_url = f"{self.base_url}/rest/api/2/issue/{self.test_issue_key}/remotelink"
@@ -294,7 +279,7 @@ class TestJiraClient(unittest.TestCase):
         mock_response.status_code = 404
         mock_get.return_value = mock_response
 
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         result = client.get_remote_links(self.test_issue_key)
 
         self.assertEqual(result, [])
@@ -306,7 +291,7 @@ class TestJiraClient(unittest.TestCase):
         mock_response.status_code = 403
         mock_get.return_value = mock_response
 
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
 
         with self.assertRaises(Exception) as cm:
             client.get_remote_links(self.test_issue_key)
@@ -325,7 +310,7 @@ class TestJiraClient(unittest.TestCase):
             }
         }
 
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         result = client.get_descendants(self.test_issue_key, depth=0)
 
         self.assertIn(self.test_issue_key, result)
@@ -371,7 +356,7 @@ class TestJiraClient(unittest.TestCase):
 
         mock_get_issue.side_effect = mock_get_issue_side_effect
 
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         result = client.get_descendants("PARENT-1", depth=1, include_subtasks=True)
 
         self.assertIn("PARENT-1", result)
@@ -418,7 +403,7 @@ class TestJiraClient(unittest.TestCase):
 
         mock_get_issue.side_effect = mock_get_issue_side_effect
 
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         result = client.get_descendants("SOURCE-1", depth=1, include_links=True)
 
         self.assertIn("SOURCE-1", result)
@@ -444,7 +429,7 @@ class TestJiraClient(unittest.TestCase):
         mock_get_issue.return_value = test_issue
         mock_get_remote_links.return_value = mock_remote_links
 
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         result = client.get_descendants(self.test_issue_key, depth=1, include_remote_links=True)
 
         self.assertIn(self.test_issue_key, result)
@@ -488,7 +473,7 @@ class TestJiraClient(unittest.TestCase):
 
         mock_get_issue.side_effect = mock_get_issue_side_effect
 
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         result = client.get_descendants("PARENT-1", depth=-1, include_subtasks=True)
 
         self.assertIn("PARENT-1", result)
@@ -523,7 +508,7 @@ class TestJiraClient(unittest.TestCase):
 
         mock_get_issue.side_effect = mock_get_issue_side_effect
 
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         result = client.get_descendants("PARENT-1", depth=1, include_subtasks=True)
 
         # Should have parent and successful child, but not the failed one
@@ -541,9 +526,9 @@ class TestJiraClient(unittest.TestCase):
             }
         }
 
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         result = client._get_related_issue_keys(
-            issue_data, "TEST-1", include_subtasks=True, include_links=False, include_remote_links=False
+            issue_data, "TEST-1", include_subtasks=True, include_links=False, include_remote_links=False, include_parent_links=False, parent_link_field="Parent Link"
         )
 
         self.assertIn("SUB-1", result)
@@ -569,9 +554,9 @@ class TestJiraClient(unittest.TestCase):
             }
         }
 
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         result = client._get_related_issue_keys(
-            issue_data, "TEST-1", include_subtasks=False, include_links=True, include_remote_links=False
+            issue_data, "TEST-1", include_subtasks=False, include_links=True, include_remote_links=False, include_parent_links=False, parent_link_field="Parent Link"
         )
 
         self.assertIn("INWARD-1", result)
@@ -589,9 +574,9 @@ class TestJiraClient(unittest.TestCase):
         }
         mock_get_remote_links.return_value = [{"url": "https://example.com"}]
 
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         result = client._get_related_issue_keys(
-            issue_data, "TEST-1", include_subtasks=False, include_links=False, include_remote_links=True
+            issue_data, "TEST-1", include_subtasks=False, include_links=False, include_remote_links=True, include_parent_links=False, parent_link_field="Parent Link"
         )
 
         # Remote links don't contribute to related keys (they're external)
@@ -607,9 +592,9 @@ class TestJiraClient(unittest.TestCase):
             }
         }
 
-        client = JiraClient(self.base_url, auth_method=None)
+        client = JiraClient(self.base_url, )
         result = client._get_related_issue_keys(
-            issue_data, "TEST-1", include_subtasks=False, include_links=False, include_remote_links=False
+            issue_data, "TEST-1", include_subtasks=False, include_links=False, include_remote_links=False, include_parent_links=False, parent_link_field="Parent Link"
         )
 
         self.assertEqual(len(result), 0)

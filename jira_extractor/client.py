@@ -16,23 +16,30 @@ from requests.auth import HTTPBasicAuth
 
 
 class JiraClient:
-    """Client for interacting with JIRA REST API"""
+    """JIRA API client for extracting issues and relationships"""
 
-    def __init__(self, base_url: str, auth_method: Optional[str] = "basic", **auth_kwargs):
+    def __init__(self, base_url: str, username: Optional[str] = None, password: Optional[str] = None,
+                 token: Optional[str] = None, bearer_token: Optional[str] = None):
         """
         Initialize JIRA client
 
         Args:
             base_url: JIRA instance URL
-            auth_method: Authentication method ('basic', 'token', 'bearer')
-            **auth_kwargs: Authentication parameters (username, password, token)
+            username: Username for Basic Auth (used with password or token)
+            password: Password for Basic Auth
+            token: API token for Basic Auth (used with username)
+            bearer_token: Personal Access Token for Bearer Auth
+
+        Raises:
+            ValueError: If authentication parameters are invalid
         """
         self.base_url = base_url.rstrip('/')
-        self.api_base = urljoin(self.base_url + '/', 'rest/api/2/')
+        self.api_base = urljoin(self.base_url, '/rest/api/2/')
         self.session = requests.Session()
+        self._field_cache = {}  # Cache for field metadata lookups
 
         # Set up authentication
-        self._setup_auth(auth_method, **auth_kwargs)
+        self._setup_auth(username, password, token, bearer_token)
 
         # Set common headers
         self.session.headers.update({
@@ -40,36 +47,22 @@ class JiraClient:
             'Accept': 'application/json'
         })
 
-    def _setup_auth(self, auth_method: Optional[str] = None, **auth_kwargs):
+    def _setup_auth(self, username: Optional[str] = None, password: Optional[str] = None,
+                    token: Optional[str] = None, bearer_token: Optional[str] = None):
         """Setup authentication for the session"""
-        if auth_method == "basic":
-            username = auth_kwargs.get('username')
-            password = auth_kwargs.get('password')
-            if not username or not password:
-                raise ValueError("Basic auth requires username and password")
+        if username and password:
             self.session.auth = HTTPBasicAuth(username, password)
-
-        elif auth_method == "token":
-            username = auth_kwargs.get('username')
-            token = auth_kwargs.get('token')
-            if not username or not token:
-                raise ValueError("Token auth requires username and token")
+        elif username and token:
             # For API token, use token as password with basic auth
             self.session.auth = HTTPBasicAuth(username, token)
-
-        elif auth_method == "bearer":
-            token = auth_kwargs.get('token')
-            if not token:
-                raise ValueError("Bearer auth requires token")
+        elif bearer_token:
             # For Bearer token (Personal Access Token), use Authorization header
-            self.session.headers.update({'Authorization': f'Bearer {token}'})
-
-        elif auth_method is None:
+            self.session.headers.update({'Authorization': f'Bearer {bearer_token}'})
+        elif not username:
             # No authentication - for public issues
             pass
-
         else:
-            raise ValueError(f"Unsupported auth method: {auth_method}")
+            raise ValueError("Authentication parameters are invalid.")
 
     def _make_api_request(self, url: str, params: Optional[Dict[str, Any]] = None,
                           resource_name: str = "resource",
@@ -170,9 +163,89 @@ class JiraClient:
             handle_404_as_empty=True
         )
 
+    def get_parent_link_children(self, issue_key: str, parent_link_field: str = "Parent Link") -> List[str]:
+        """
+        Search for issues that have the given issue as their parent using a parent link field
+
+        Args:
+            issue_key: JIRA issue key to search for children
+            parent_link_field: Name of the parent link field (default: "Parent Link")
+
+        Returns:
+            List of child issue keys
+
+        Raises:
+            Exception: If API request fails
+        """
+        url = urljoin(self.api_base, 'search')
+        # Search using JQL for issues where the parent link field equals the given issue key
+        jql = f'"{parent_link_field}" = "{issue_key}"'
+        params = {
+            'jql': jql,
+            'fields': 'key',  # Only need the key field
+            'maxResults': 1000  # Reasonable limit for children
+        }
+
+        try:
+            response = self._make_api_request(
+                url,
+                params=params,
+                resource_name=f"children of issue {issue_key} via {parent_link_field}",
+                handle_404_as_empty=True
+            )
+
+            # Extract issue keys from the response
+            issues = response.get('issues', [])
+            child_keys = [issue.get('key') for issue in issues if issue.get('key')]
+            logging.debug(f"Found {len(child_keys)} children via {parent_link_field} for {issue_key}: {child_keys}")
+            return child_keys
+
+        except Exception as e:
+            logging.debug(f"Could not search for {parent_link_field} children of {issue_key}: {e}")
+            return []
+
+    def get_field_by_name(self, field_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Look up field metadata by name to get field ID
+
+        Args:
+            field_name: Display name of the field (e.g., "Parent Link")
+
+        Returns:
+            Field metadata dictionary or None if not found
+
+        Raises:
+            Exception: If API request fails
+        """
+        # Check cache first
+        if field_name in self._field_cache:
+            return self._field_cache[field_name]
+
+        url = urljoin(self.api_base, 'field')
+
+        try:
+            fields = self._make_api_request(url, resource_name="field metadata")
+
+            # Find field by name
+            for field in fields:
+                if field.get('name') == field_name:
+                    self._field_cache[field_name] = field
+                    logging.debug(f"Found field '{field_name}' with ID: {field.get('id')}")
+                    return field
+
+            # Field not found
+            logging.debug(f"Field '{field_name}' not found")
+            self._field_cache[field_name] = None
+            return None
+
+        except Exception as e:
+            logging.debug(f"Could not fetch field metadata: {e}")
+            return None
+
     def get_descendants(self, issue_key: str, depth: int = 0,
                         include_subtasks: bool = False, include_links: bool = False,
-                        include_remote_links: bool = False, expand: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+                        include_remote_links: bool = False, include_parent_links: bool = False,
+                        parent_link_field: str = "Parent Link", expand: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
         """
         Fetch an issue and its descendants based on specified relationship types and depth
 
@@ -182,6 +255,8 @@ class JiraClient:
             include_subtasks: Include subtask relationships
             include_links: Include issue links
             include_remote_links: Include remote links
+            include_parent_links: Include parent link custom field relationships
+            parent_link_field: Name of the parent link field (default: "Parent Link")
             expand: Comma-separated fields to expand for each issue
 
         Returns:
@@ -200,6 +275,8 @@ class JiraClient:
             "include_subtasks": include_subtasks,
             "include_links": include_links,
             "include_remote_links": include_remote_links,
+            "include_parent_links": include_parent_links,
+            "parent_link_field": parent_link_field,
             "traversal_order": []
         }
 
@@ -229,7 +306,7 @@ class JiraClient:
 
                 # Collect related issues to process next
                 related_issues = self._get_related_issue_keys(
-                    issue_data, current_key, include_subtasks, include_links, include_remote_links
+                    issue_data, current_key, include_subtasks, include_links, include_remote_links, include_parent_links, parent_link_field
                 )
 
                 # Add related issues to processing queue
@@ -249,7 +326,8 @@ class JiraClient:
 
     def _get_related_issue_keys(self, issue_data: Dict[str, Any], current_key: str,
                                 include_subtasks: bool, include_links: bool,
-                                include_remote_links: bool) -> Set[str]:
+                                include_remote_links: bool, include_parent_links: bool,
+                                parent_link_field: str) -> Set[str]:
         """
         Extract related issue keys from issue data based on relationship types
 
@@ -259,6 +337,8 @@ class JiraClient:
             include_subtasks: Include subtask relationships
             include_links: Include issue links
             include_remote_links: Include remote links
+            include_parent_links: Include parent link custom field relationships
+            parent_link_field: Name of the parent link field
 
         Returns:
             Set of related issue keys
@@ -313,5 +393,27 @@ class JiraClient:
                 # Note: Remote links don't contribute to related_keys since they're external
             except Exception as e:
                 logging.debug(f"Could not fetch remote links for {current_key}: {e}")
+
+        # Process parent links (custom field)
+        if include_parent_links:
+            # Look up the field metadata to get the field ID
+            field_metadata = self.get_field_by_name(parent_link_field)
+            if field_metadata:
+                field_id = field_metadata.get('id')
+                if field_id:
+                    # Get parent from the custom field
+                    parent_link = fields.get(field_id)
+                    if parent_link:
+                        related_keys.add(parent_link)
+                        logging.debug(f"Found parent link via {parent_link_field}: {parent_link}")
+
+            # Search for children that have this issue as their parent
+            try:
+                children = self.get_parent_link_children(current_key, parent_link_field)
+                for child_key in children:
+                    related_keys.add(child_key)
+                    logging.debug(f"Found parent link child: {child_key}")
+            except Exception as e:
+                logging.debug(f"Could not fetch parent link children for {current_key}: {e}")
 
         return related_keys

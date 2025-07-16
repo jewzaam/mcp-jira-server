@@ -215,6 +215,10 @@ Examples:
                                     help='Include issue links in traversal')
     relationship_group.add_argument('--include-remote-links', action='store_true',
                                     help='Include remote links in traversal')
+    relationship_group.add_argument('--include-parent-links', action='store_true',
+                                    help='Include Parent Link custom field relationships in traversal')
+    relationship_group.add_argument('--parent-link-field', default='Parent Link',
+                                    help='Name of the parent link field (default: "Parent Link")')
 
     # Debug options
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
@@ -267,32 +271,31 @@ def main():
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Auto-detect authentication method and validate required arguments
+    # Prepare authentication parameters
+    username = None
+    password = None
+    token = None
+    bearer_token = None
+
     if args.bearer_token:
         # Bearer token authentication (Personal Access Token)
-        auth_method = "bearer"
-        auth_kwargs = {"token": args.bearer_token}
+        bearer_token = args.bearer_token
     elif args.token:
         # API token authentication (Basic Auth with username:token)
         if not args.username:
             print("Error: --username is required when using --token", file=sys.stderr)
             sys.exit(1)
-        auth_method = "token"
-        auth_kwargs = {"username": args.username, "token": args.token}
+        username = args.username
+        token = args.token
     elif args.username or args.password:
         # Basic authentication (username:password)
         if not args.username:
             print("Error: --username is required for password authentication", file=sys.stderr)
             sys.exit(1)
-        auth_method = "basic"
+        username = args.username
         password = args.password
         if not password:
             password = getpass.getpass("Password: ")
-        auth_kwargs = {"username": args.username, "password": password}
-    else:
-        # No authentication (for public issues)
-        auth_method = None
-        auth_kwargs = {}
 
     # Determine if descendant extraction is requested
     has_descendant_options = (
@@ -300,17 +303,18 @@ def main():
         or args.include_subtasks
         or args.include_links
         or args.include_remote_links
+        or args.include_parent_links
     )
 
     try:
         # Initialize JIRA client
-        client = JiraClient(url, auth_method, **auth_kwargs)
+        client = JiraClient(url, username=username, password=password, token=token, bearer_token=bearer_token)
 
         # Test connection (skip for unauthenticated access)
-        if auth_method is not None:
+        if username or bearer_token:
             logging.info("Testing JIRA connection...")
             user_info = client.test_connection()
-            logging.info(f"Connected as: {user_info.get('displayName', args.username)}")
+            logging.info(f"Connected as: {user_info.get('displayName', username or 'Unknown')}")
         else:
             logging.info("Attempting unauthenticated access to public issue...")
 
@@ -325,6 +329,8 @@ def main():
                 logging.info("Including issue links")
             if args.include_remote_links:
                 logging.info("Including remote links")
+            if args.include_parent_links:
+                logging.info("Including Parent Link custom field relationships")
 
             # Fetch issue and descendants
             issues_data = client.get_descendants(
@@ -333,6 +339,8 @@ def main():
                 include_subtasks=args.include_subtasks,
                 include_links=args.include_links,
                 include_remote_links=args.include_remote_links,
+                include_parent_links=args.include_parent_links,
+                parent_link_field=args.parent_link_field,
                 expand=args.expand
             )
 
