@@ -262,6 +262,358 @@ class TestJiraClient(unittest.TestCase):
         self.assertTrue(any("Response status:" in call for call in debug_calls))
         self.assertTrue(any("Response headers:" in call for call in debug_calls))
 
+    @patch('jira_extractor.client.requests.Session.get')
+    def test_get_remote_links_success(self, mock_get):
+        """Test successful remote links retrieval"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {
+                "id": 10000,
+                "self": "https://test.jira.com/rest/api/2/issue/TEST-123/remotelink/10000",
+                "object": {
+                    "url": "https://example.com/doc1",
+                    "title": "External Documentation"
+                }
+            }
+        ]
+        mock_get.return_value = mock_response
+
+        client = JiraClient(self.base_url, auth_method=None)
+        result = client.get_remote_links(self.test_issue_key)
+
+        expected_url = f"{self.base_url}/rest/api/2/issue/{self.test_issue_key}/remotelink"
+        mock_get.assert_called_once_with(expected_url, params={})
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["object"]["title"], "External Documentation")
+
+    @patch('jira_extractor.client.requests.Session.get')
+    def test_get_remote_links_404_empty_result(self, mock_get):
+        """Test remote links retrieval with 404 returns empty list"""
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_get.return_value = mock_response
+
+        client = JiraClient(self.base_url, auth_method=None)
+        result = client.get_remote_links(self.test_issue_key)
+
+        self.assertEqual(result, [])
+
+    @patch('jira_extractor.client.requests.Session.get')
+    def test_get_remote_links_403_error(self, mock_get):
+        """Test remote links retrieval with 403 access denied error"""
+        mock_response = Mock()
+        mock_response.status_code = 403
+        mock_get.return_value = mock_response
+
+        client = JiraClient(self.base_url, auth_method=None)
+
+        with self.assertRaises(Exception) as cm:
+            client.get_remote_links(self.test_issue_key)
+
+        self.assertIn(f"Access denied to remote links for issue {self.test_issue_key}", str(cm.exception))
+
+    @patch('jira_extractor.client.JiraClient.get_issue')
+    def test_get_descendants_single_issue_depth_zero(self, mock_get_issue):
+        """Test get_descendants with depth 0 returns only target issue"""
+        mock_get_issue.return_value = {
+            "key": self.test_issue_key,
+            "fields": {
+                "summary": "Test Issue",
+                "subtasks": [],
+                "issuelinks": []
+            }
+        }
+
+        client = JiraClient(self.base_url, auth_method=None)
+        result = client.get_descendants(self.test_issue_key, depth=0)
+
+        self.assertIn(self.test_issue_key, result)
+        self.assertIn("_extraction_metadata", result)
+        self.assertEqual(len(result) - 1, 1)  # Minus metadata
+        mock_get_issue.assert_called_once_with(self.test_issue_key, expand=None)
+
+    @patch('jira_extractor.client.JiraClient.get_issue')
+    def test_get_descendants_with_subtasks(self, mock_get_issue):
+        """Test get_descendants with subtasks traversal"""
+        parent_issue = {
+            "key": "PARENT-1",
+            "fields": {
+                "summary": "Parent Issue",
+                "subtasks": [{"key": "CHILD-1"}, {"key": "CHILD-2"}],
+                "issuelinks": []
+            }
+        }
+        child1_issue = {
+            "key": "CHILD-1",
+            "fields": {
+                "summary": "Child Issue 1",
+                "subtasks": [],
+                "issuelinks": []
+            }
+        }
+        child2_issue = {
+            "key": "CHILD-2",
+            "fields": {
+                "summary": "Child Issue 2",
+                "subtasks": [],
+                "issuelinks": []
+            }
+        }
+
+        def mock_get_issue_side_effect(issue_key, expand=None):
+            if issue_key == "PARENT-1":
+                return parent_issue
+            elif issue_key == "CHILD-1":
+                return child1_issue
+            elif issue_key == "CHILD-2":
+                return child2_issue
+
+        mock_get_issue.side_effect = mock_get_issue_side_effect
+
+        client = JiraClient(self.base_url, auth_method=None)
+        result = client.get_descendants("PARENT-1", depth=1, include_subtasks=True)
+
+        self.assertIn("PARENT-1", result)
+        self.assertIn("CHILD-1", result)
+        self.assertIn("CHILD-2", result)
+        self.assertIn("_extraction_metadata", result)
+        self.assertEqual(len(result) - 1, 3)  # Minus metadata
+        self.assertEqual(mock_get_issue.call_count, 3)
+
+    @patch('jira_extractor.client.JiraClient.get_issue')
+    def test_get_descendants_with_issue_links(self, mock_get_issue):
+        """Test get_descendants with issue links traversal"""
+        source_issue = {
+            "key": "SOURCE-1",
+            "fields": {
+                "summary": "Source Issue",
+                "subtasks": [],
+                "issuelinks": [
+                    {
+                        "type": {"inward": "is blocked by", "outward": "blocks"},
+                        "inwardIssue": {"key": "INWARD-1"}
+                    },
+                    {
+                        "type": {"inward": "is blocked by", "outward": "blocks"},
+                        "outwardIssue": {"key": "OUTWARD-1"}
+                    }
+                ]
+            }
+        }
+        target_issue = {
+            "key": "OUTWARD-1",
+            "fields": {
+                "summary": "Target Issue",
+                "subtasks": [],
+                "issuelinks": []
+            }
+        }
+
+        def mock_get_issue_side_effect(issue_key, expand=None):
+            if issue_key == "SOURCE-1":
+                return source_issue
+            elif issue_key == "OUTWARD-1":
+                return target_issue
+
+        mock_get_issue.side_effect = mock_get_issue_side_effect
+
+        client = JiraClient(self.base_url, auth_method=None)
+        result = client.get_descendants("SOURCE-1", depth=1, include_links=True)
+
+        self.assertIn("SOURCE-1", result)
+        self.assertIn("OUTWARD-1", result)
+        self.assertIn("_extraction_metadata", result)
+        self.assertEqual(len(result) - 1, 3)  # Minus metadata
+        self.assertEqual(mock_get_issue.call_count, 3)
+
+    @patch('jira_extractor.client.JiraClient.get_remote_links')
+    @patch('jira_extractor.client.JiraClient.get_issue')
+    def test_get_descendants_with_remote_links(self, mock_get_issue, mock_get_remote_links):
+        """Test get_descendants with remote links included"""
+        test_issue = {
+            "key": self.test_issue_key,
+            "fields": {
+                "summary": "Test Issue",
+                "subtasks": [],
+                "issuelinks": []
+            }
+        }
+        mock_remote_links = [{"url": "https://example.com", "title": "External Link"}]
+
+        mock_get_issue.return_value = test_issue
+        mock_get_remote_links.return_value = mock_remote_links
+
+        client = JiraClient(self.base_url, auth_method=None)
+        result = client.get_descendants(self.test_issue_key, depth=1, include_remote_links=True)
+
+        self.assertIn(self.test_issue_key, result)
+        mock_get_remote_links.assert_called_once_with(self.test_issue_key)
+
+    @patch('jira_extractor.client.JiraClient.get_issue')
+    def test_get_descendants_unlimited_depth(self, mock_get_issue):
+        """Test get_descendants with unlimited depth (-1)"""
+        parent_issue = {
+            "key": "PARENT-1",
+            "fields": {
+                "summary": "Parent Issue",
+                "subtasks": [{"key": "CHILD-1"}],
+                "issuelinks": []
+            }
+        }
+        child_issue = {
+            "key": "CHILD-1",
+            "fields": {
+                "summary": "Child Issue",
+                "subtasks": [{"key": "GRANDCHILD-1"}],
+                "issuelinks": []
+            }
+        }
+        grandchild_issue = {
+            "key": "GRANDCHILD-1",
+            "fields": {
+                "summary": "Grandchild Issue",
+                "subtasks": [],
+                "issuelinks": []
+            }
+        }
+
+        def mock_get_issue_side_effect(issue_key, expand=None):
+            if issue_key == "PARENT-1":
+                return parent_issue
+            elif issue_key == "CHILD-1":
+                return child_issue
+            elif issue_key == "GRANDCHILD-1":
+                return grandchild_issue
+
+        mock_get_issue.side_effect = mock_get_issue_side_effect
+
+        client = JiraClient(self.base_url, auth_method=None)
+        result = client.get_descendants("PARENT-1", depth=-1, include_subtasks=True)
+
+        self.assertIn("PARENT-1", result)
+        self.assertIn("CHILD-1", result)
+        self.assertIn("GRANDCHILD-1", result)
+        self.assertEqual(len(result) - 1, 3)  # Minus metadata
+
+    @patch('jira_extractor.client.JiraClient.get_issue')
+    def test_get_descendants_error_handling(self, mock_get_issue):
+        """Test get_descendants continues processing when one issue fails"""
+        def mock_get_issue_side_effect(issue_key, expand=None):
+            if issue_key == "PARENT-1":
+                return {
+                    "key": "PARENT-1",
+                    "fields": {
+                        "summary": "Parent Issue",
+                        "subtasks": [{"key": "CHILD-1"}, {"key": "CHILD-2"}],
+                        "issuelinks": []
+                    }
+                }
+            elif issue_key == "CHILD-1":
+                raise Exception("Issue not found")
+            elif issue_key == "CHILD-2":
+                return {
+                    "key": "CHILD-2",
+                    "fields": {
+                        "summary": "Child Issue 2",
+                        "subtasks": [],
+                        "issuelinks": []
+                    }
+                }
+
+        mock_get_issue.side_effect = mock_get_issue_side_effect
+
+        client = JiraClient(self.base_url, auth_method=None)
+        result = client.get_descendants("PARENT-1", depth=1, include_subtasks=True)
+
+        # Should have parent and successful child, but not the failed one
+        self.assertIn("PARENT-1", result)
+        self.assertIn("CHILD-2", result)
+        self.assertNotIn("CHILD-1", result)
+
+    def test_get_related_issue_keys_subtasks(self):
+        """Test _get_related_issue_keys extracts subtask relationships"""
+        issue_data = {
+            "fields": {
+                "subtasks": [{"key": "SUB-1"}, {"key": "SUB-2"}],
+                "parent": {"key": "PARENT-1"},
+                "issuelinks": []
+            }
+        }
+
+        client = JiraClient(self.base_url, auth_method=None)
+        result = client._get_related_issue_keys(
+            issue_data, "TEST-1", include_subtasks=True, include_links=False, include_remote_links=False
+        )
+
+        self.assertIn("SUB-1", result)
+        self.assertIn("SUB-2", result)
+        self.assertIn("PARENT-1", result)
+        self.assertEqual(len(result), 3)
+
+    def test_get_related_issue_keys_issue_links(self):
+        """Test _get_related_issue_keys extracts issue links"""
+        issue_data = {
+            "fields": {
+                "subtasks": [],
+                "issuelinks": [
+                    {
+                        "type": {"inward": "is blocked by", "outward": "blocks"},
+                        "inwardIssue": {"key": "INWARD-1"}
+                    },
+                    {
+                        "type": {"inward": "is blocked by", "outward": "blocks"},
+                        "outwardIssue": {"key": "OUTWARD-1"}
+                    }
+                ]
+            }
+        }
+
+        client = JiraClient(self.base_url, auth_method=None)
+        result = client._get_related_issue_keys(
+            issue_data, "TEST-1", include_subtasks=False, include_links=True, include_remote_links=False
+        )
+
+        self.assertIn("INWARD-1", result)
+        self.assertIn("OUTWARD-1", result)
+        self.assertEqual(len(result), 2)
+
+    @patch('jira_extractor.client.JiraClient.get_remote_links')
+    def test_get_related_issue_keys_remote_links(self, mock_get_remote_links):
+        """Test _get_related_issue_keys processes remote links"""
+        issue_data = {
+            "fields": {
+                "subtasks": [],
+                "issuelinks": []
+            }
+        }
+        mock_get_remote_links.return_value = [{"url": "https://example.com"}]
+
+        client = JiraClient(self.base_url, auth_method=None)
+        result = client._get_related_issue_keys(
+            issue_data, "TEST-1", include_subtasks=False, include_links=False, include_remote_links=True
+        )
+
+        # Remote links don't contribute to related keys (they're external)
+        self.assertEqual(len(result), 0)
+        mock_get_remote_links.assert_called_once_with("TEST-1")
+
+    def test_get_related_issue_keys_no_relationships(self):
+        """Test _get_related_issue_keys with no relationships enabled"""
+        issue_data = {
+            "fields": {
+                "subtasks": [{"key": "SUB-1"}],
+                "issuelinks": [{"outwardIssue": {"key": "LINKED-1"}}]
+            }
+        }
+
+        client = JiraClient(self.base_url, auth_method=None)
+        result = client._get_related_issue_keys(
+            issue_data, "TEST-1", include_subtasks=False, include_links=False, include_remote_links=False
+        )
+
+        self.assertEqual(len(result), 0)
+
 
 if __name__ == '__main__':
     unittest.main() 
