@@ -8,4 +8,7 @@ requests==2.31.0
 PyYAML==6.0.1
 
 # URL parsing utilities
-urllib3==2.1.0 
+urllib3==2.1.0
+
+# MCP server implementation
+mcp[cli]==1.9.3 
