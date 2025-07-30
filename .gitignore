@@ -88,7 +88,4 @@ credentials.txt
 token.txt
 auth.sh 
 CLAUDE.md
-
-# Test data
-test-data/
 mcp_jira_server.yaml

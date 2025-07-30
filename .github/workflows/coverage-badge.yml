@@ -1,4 +1,4 @@
-name: Update Coverage Badge
+name: Update MCP Server Coverage Badge
 
 on:
   push:

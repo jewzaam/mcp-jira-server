@@ -1,4 +1,4 @@
-name: Coverage Check
+name: MCP Server Coverage Check
 
 on:
   pull_request:

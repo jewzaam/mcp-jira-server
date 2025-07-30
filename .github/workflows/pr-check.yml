@@ -1,4 +1,4 @@
-name: PR Check
+name: MCP Server PR Check
 
 on:
   pull_request:
