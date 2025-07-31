@@ -46,9 +46,9 @@ test = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/jewzaam/jira-extractor"
-"Bug Reports" = "https://github.com/jewzaam/jira-extractor/issues"
-"Source" = "https://github.com/jewzaam/jira-extractor"
+"Homepage" = "https://github.com/jewzaam/mcp-jira-server"
+"Bug Reports" = "https://github.com/jewzaam/mcp-jira-server/issues"
+"Source" = "https://github.com/jewzaam/mcp-jira-server"
 
 [project.scripts]
 mcp-jira-server = "mcp_jira_server.server:main"
