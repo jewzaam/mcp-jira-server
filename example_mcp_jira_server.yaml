@@ -1,0 +1,8 @@
+# Test configuration for Red Hat JIRA
+url: https://issues.redhat.com
+
+# No authentication needed for public issues on Red Hat JIRA
+# username: your_username
+# password: your_password  
+# token: your_api_token
+# bearer_token: your_bearer_token 

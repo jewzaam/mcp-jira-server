@@ -1,287 +1,287 @@
-# JIRA Extractor
+# MCP JIRA Server
 
 ![PR Check](https://github.com/jewzaam/jira-extractor/workflows/PR%20Check/badge.svg)
 ![Coverage Check](https://github.com/jewzaam/jira-extractor/workflows/Coverage%20Check/badge.svg)
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jewzaam/jira-extractor/main/.github/badges/coverage.json)](https://github.com/jewzaam/jira-extractor/actions/workflows/coverage-badge.yml)
 
-A command-line tool for extracting JIRA issues and related issues with configurable export options and relationship traversal.
+A read-only Model Context Protocol (MCP) server that provides AI assistants with tools to search and retrieve JIRA issues. This server integrates with AI tools like Claude Desktop, VS Code, and other MCP-compatible clients.
+
+## Features
+
+- **Search JIRA Issues**: Support for both JQL queries and simple text searches
+- **Retrieve Issue Details**: Get comprehensive information about specific JIRA issues  
+- **Flexible Authentication**: Support for username/password, API tokens, and Personal Access Tokens
+- **Configuration Management**: YAML/JSON configuration files with environment variable support
+- **Read-Only Operations**: Safe integration with AI tools - no data modification capabilities
 
 ## Setup
 
 ### Prerequisites
 - Python 3.8 or higher
 - Access to a JIRA instance with valid credentials
+- MCP-compatible client (Claude Desktop, VS Code with MCP extension, etc.)
 
 ### Installation
 
-1. Clone or download this repository
-2. Create a virtual environment:
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/jewzaam/jira-extractor.git
+   cd jira-extractor
+   ```
+
+2. Create and activate a virtual environment:
    ```bash
    python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
-3. Activate the virtual environment:
-   ```bash
-   # On Linux/macOS
-   source venv/bin/activate
-   
-   # On Windows
-   venv\Scripts\activate
-   ```
-
-4. Install dependencies:
+3. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
 
+## Configuration
+
+### Configuration File
+
+Create a configuration file (YAML or JSON) with your JIRA connection details:
+
+```yaml
+# mcp_jira_server.yaml
+url: https://your-jira-instance.com
+username: your-username
+token: your-api-token  # Recommended over password
+```
+
+Or using JSON:
+```json
+{
+  "url": "https://your-jira-instance.com",
+  "username": "your-username",
+  "bearer_token": "your-personal-access-token"
+}
+```
+
+### Authentication Methods
+
+The server supports multiple authentication methods:
+
+1. **API Token (Recommended)**:
+   ```yaml
+   url: https://your-jira-instance.com
+   username: your-username
+   token: your-api-token
+   ```
+
+2. **Personal Access Token**:
+   ```yaml
+   url: https://your-jira-instance.com
+   bearer_token: your-personal-access-token
+   ```
+
+3. **Username/Password**:
+   ```yaml
+   url: https://your-jira-instance.com
+   username: your-username
+   password: your-password
+   ```
+
+### Configuration File Locations
+
+The server looks for configuration files in this order:
+1. Explicit path via `--config` argument
+2. Path specified in `MCP_JIRA_CONFIG` environment variable
+3. `mcp_jira_server.yaml` in the current directory
+
 ## Usage
 
-### Authentication Setup
+### Running the Server
 
-#### Option 1: Using secret-tool (Recommended for Linux)
-
-Store your JIRA token securely using the system keyring:
+Start the MCP server using the command line:
 
 ```bash
-# Store token in keyring
-JIRA_USER=$USER
-secret-tool store --label="JIRA API Token" service jira-pat-for-$JIRA_USER
+# Using configuration file
+python -m mcp_jira_server.server
 
-# Retrieve and use token (using public RFE issue, no auth required)
-python jira_extractor.py -u https://issues.redhat.com -i RFE-7877
-# Or with authentication:
-JIRA_USER=$USER && JIRA_TOKEN=$(secret-tool lookup service jira-pat-for-$JIRA_USER) && python jira_extractor.py -u https://issues.redhat.com -i RFE-7877 --username "$JIRA_USER" --token "$JIRA_TOKEN"
+# With explicit configuration path
+python -m mcp_jira_server.server --config /path/to/config.yaml
+
+# Override config with command line arguments
+python -m mcp_jira_server.server --url https://jira.company.com --username myuser --token mytoken
 ```
-
-#### Option 2: Environment Variables
-
-Create a configuration file (recommended) or export variables directly:
-
-```bash
-# Create config file (automatically ignored by git)
-cat > .env <<EOF
-export JIRA_URL="https://issues.redhat.com"
-export JIRA_USER="your-username"
-export JIRA_TOKEN="your-api-token"
-EOF
-
-# Source config and run
-source .env
-python jira_extractor.py -u "$JIRA_URL" -i RFE-7877 --username "$JIRA_USER" --token "$JIRA_TOKEN"
-```
-
-#### Option 3: Configuration Script
-
-Create a shell script with your settings:
-
-```bash
-# Create config file
-cat > jira-config.sh <<EOF
-#!/bin/bash
-# JIRA Configuration - DO NOT COMMIT TO VERSION CONTROL
-export JIRA_URL="https://issues.redhat.com"
-export JIRA_USER="your-username"
-export JIRA_TOKEN="your-api-token"
-EOF
-
-chmod +x jira-config.sh
-
-# Use configuration
-source ./jira-config.sh
-python jira_extractor.py -u "$JIRA_URL" -i RFE-7877 --username "$JIRA_USER" --token "$JIRA_TOKEN"
-```
-
-### Basic Usage Examples
-
-Extract a single issue to stdout:
-```bash
-# Public issue (no authentication required)
-python jira_extractor.py -u https://issues.redhat.com -i RFE-7877
-
-# Or with authentication for private issues
-python jira_extractor.py -u https://issues.redhat.com -i RFE-7877 --username $USER --token mytoken
-```
-
-Using with stored credentials:
-```bash
-# With secret-tool
-JIRA_USER=$USER && JIRA_TOKEN=$(secret-tool lookup service jira-pat-for-$JIRA_USER) && python jira_extractor.py -u https://issues.redhat.com -i RFE-7877 --username "$JIRA_USER" --token "$JIRA_TOKEN"
-
-# With config file
-source ./jira-config.sh
-python jira_extractor.py -u "$JIRA_URL" -i RFE-7877 --username "$JIRA_USER" --token "$JIRA_TOKEN"
-```
-
-### Output Options
-
-Output to stdout (default):
-```bash
-python jira_extractor.py -u https://issues.redhat.com -i RFE-7877 --username $USER --token mytoken -o -
-```
-
-Output to directory:
-```bash
-python jira_extractor.py -u https://issues.redhat.com -i RFE-7877 --username $USER --token mytoken -o ./output
-```
-
-### Advanced Options
-
-Include expanded fields:
-```bash
-python jira_extractor.py -u https://issues.redhat.com -i RFE-7877 --username $USER --token mytoken --expand "changelog,comments,subtasks"
-```
-
-Enable debug logging:
-```bash
-python jira_extractor.py -u https://issues.redhat.com -i RFE-7877 --username $USER --token mytoken --debug
-```
-
-Overwrite existing files:
-```bash
-python jira_extractor.py -u https://issues.redhat.com -i RFE-7877 --username $USER --token mytoken -o ./output --overwrite
-```
-
-### Testing with Makefile
-
-The project includes a Makefile with useful targets for testing connectivity:
-
-```bash
-# Test connection with stored credentials
-source ./jira-config.sh
-JIRA_URL="$JIRA_URL" JIRA_USER="$JIRA_USER" JIRA_TOKEN="$JIRA_TOKEN" make test-connection
-
-# Or with secret-tool  
-export JIRA_URL="https://issues.redhat.com" && export JIRA_USER=$USER && export JIRA_TOKEN=$(secret-tool lookup service jira-pat-for-$JIRA_USER) && make test-connection
-```
-
-### Security Notes
-
-- **Never commit credentials to version control**
-- Use `secret-tool` on Linux systems for secure token storage
-- Configuration files (`.env`, `jira-config.sh`) are automatically ignored by git
-- API tokens are preferred over passwords for automation
-- Limit token permissions to read-only when possible
-- Store tokens in system keyring or encrypted configuration files
-- Use `chmod 600` to restrict configuration file permissions
 
 ### Command Line Options
 
 ```
 Options:
-  -u, --url TEXT        JIRA instance URL  [required]
-  --username TEXT       JIRA username  [required]
-  --password TEXT       JIRA password (will prompt if not provided)
-  --token TEXT          API token (use instead of password)
-  -i, --issue TEXT      JIRA issue key (e.g., PROJ-123)  [required]
-  -o, --output TEXT     Output directory or "-" for stdout (default: stdout)
-  --expand TEXT         Comma-separated fields to expand (e.g., changelog,comments)
-  --debug               Enable debug logging
-  --overwrite           Overwrite existing files
-  --help                Show this message and exit.
+  -c, --config TEXT      Path to YAML/JSON configuration file
+  --url TEXT            JIRA base URL (overrides config)
+  --username TEXT       JIRA username (overrides config)
+  --password TEXT       JIRA password (overrides config)
+  --token TEXT          JIRA API token (overrides config)
+  --bearer-token TEXT   Personal Access Token (overrides config)
+  --help               Show help message
 ```
+
+### MCP Client Integration
+
+#### Claude Desktop
+
+Add the server to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "jira": {
+      "command": "python",
+      "args": [
+        "/path/to/jira-extractor/mcp_jira_server/server.py",
+        "--config",
+        "/path/to/your/config.yaml"
+      ]
+    }
+  }
+}
+```
+
+#### VS Code with MCP Extension
+
+Configure the server in your VS Code MCP settings:
+
+```json
+{
+  "mcp.servers": {
+    "jira": {
+      "command": "python",
+      "args": ["-m", "mcp_jira_server.server"],
+      "cwd": "/path/to/jira-extractor"
+    }
+  }
+}
+```
+
+## Available Tools
+
+The server provides three MCP tools:
+
+### 1. `search_issues`
+Search for JIRA issues using JQL or simple text queries.
+
+**Parameters:**
+- `query` (string): JQL query or simple search term
+- `max_results` (int, optional): Maximum number of results (1-100, default 25)
+
+**Examples:**
+- Simple text: `"bug in authentication"`
+- JQL query: `"project = PROJ AND status = Open"`
+
+### 2. `get_issue` 
+Retrieve detailed information about a specific JIRA issue.
+
+**Parameters:**
+- `key` (string): JIRA issue key (e.g., "PROJ-123")
+- `expand` (string, optional): Comma-separated fields to expand
+
+**Example:**
+- Get issue: `"PROJ-123"`
+- With expansion: `"PROJ-123"` with expand `"changelog,comments"`
+
+### 3. `identifier_hint`
+Get help about JIRA issue identifier format.
+
+**Parameters:** None
+
+**Returns:** Description of valid JIRA issue key patterns.
 
 ## Development
 
-### Testing and Coverage
+### Running Tests
 
-The project requires comprehensive test coverage with a minimum threshold of **90%**. All pull requests must meet this requirement before merging.
-
-```bash
-# Run tests with coverage report
-make coverage
-
-# Run all tests (includes linting and coverage)
-make test
-
-# Generate HTML coverage report for detailed analysis
-make coverage-html
-```
-
-#### Coverage Enforcement
-
-- **Automated checks**: Coverage is automatically checked on all pull requests
-- **Minimum threshold**: 90% code coverage required
-- **Blocking**: PRs below 90% coverage cannot be merged
-- **Badge**: Current coverage status is displayed in the README badge
-
-#### Running Tests Locally
+The project includes comprehensive unit tests:
 
 ```bash
-# Run all tests with linting
-make test
+# Run all tests
+python -m unittest discover mcp_jira_server/
 
-# Run tests only (no linting)
-make test-unit
+# Run specific test modules
+python -m unittest mcp_jira_server.test_config
+python -m unittest mcp_jira_server.test_server
 
-# Check test coverage
-make coverage
-
-# View detailed coverage in browser
-make coverage-html && open htmlcov/index.html
+# Run with verbose output
+python -m unittest mcp_jira_server.test_server -v
 ```
 
-### Contributing
+### Test Coverage
+
+Run tests with coverage reporting:
+
+```bash
+# Install coverage if not already installed
+pip install -r requirements-test.txt
+
+# Run tests with coverage
+coverage run --source=mcp_jira_server -m unittest discover mcp_jira_server/
+coverage report -m
+coverage html  # Generate HTML report
+```
+
+### Code Quality
+
+The project maintains high code quality standards:
+
+```bash
+# Run linting
+flake8 mcp_jira_server/ --max-line-length=100
+
+# Check for common issues
+python -m py_compile mcp_jira_server/*.py
+```
+
+## Security Considerations
+
+- **API Tokens**: Always prefer API tokens over passwords for authentication
+- **Configuration Files**: Ensure configuration files with credentials have restricted permissions (`chmod 600`)
+- **Environment Variables**: Consider using environment variables for sensitive data
+- **HTTPS**: Always use HTTPS URLs for JIRA connections
+- **Read-Only**: The server only provides read access to JIRA data
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Authentication Failures**:
+   - Verify your credentials are correct
+   - Check if your JIRA instance requires specific authentication methods
+   - Ensure your user has appropriate permissions
+
+2. **Connection Issues**:
+   - Verify the JIRA URL is correct and accessible
+   - Check network connectivity and firewall settings
+   - Confirm JIRA instance is running and responsive
+
+3. **MCP Integration Issues**:
+   - Verify the server starts correctly from command line
+   - Check MCP client configuration syntax
+   - Review client logs for connection errors
+
+### Debug Mode
+
+Enable debug logging by setting the log level:
+
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+```
+
+## Contributing
 
 When contributing to this project:
 
-1. Ensure all tests pass: `make test`
-2. Maintain or improve coverage: `make coverage`
+1. Ensure all tests pass: `python -m unittest discover`
+2. Maintain or improve test coverage
 3. Follow existing code style and patterns
 4. Add tests for new functionality
 5. Update documentation as needed
-
-## Authentication
-
-### API Token Setup
-
-#### 1. Generate JIRA API Token
-For better security, use API tokens instead of passwords:
-
-1. Log into your JIRA instance (https://issues.redhat.com)
-2. Go to Account Settings → Security → API Tokens
-3. Create a new API token
-4. Copy the token for use with the tool
-
-#### 2. Store Token Securely
-
-**Using secret-tool (Linux):**
-```bash
-# Install secret-tool (if not already installed)
-sudo dnf install libsecret-tools    # Fedora/RHEL
-sudo apt install libsecret-tools     # Ubuntu/Debian
-
-# Store your token
-secret-tool store --label="JIRA API Token" service jira username your-username
-# You'll be prompted to enter your token
-```
-
-**Using configuration file:**
-```bash
-# Create secure config file
-cat > jira-config.sh <<EOF
-#!/bin/bash
-export JIRA_URL="https://issues.redhat.com"
-export JIRA_USER="your-username"
-export JIRA_TOKEN="your-api-token-here"
-EOF
-
-chmod 600 jira-config.sh  # Restrict permissions
-```
-
-### Basic Authentication (Not Recommended)
-If API tokens are not available, you can use username/password authentication. The password will be prompted securely if not provided on the command line.
-
-## Output Format
-
-All output is in JSON format, matching the native JIRA REST API response structure. When outputting to a directory, each issue is saved as `{ISSUE-KEY}.json`.
-
-## Error Handling
-
-The tool provides clear error messages for common scenarios:
-- Authentication failures
-- Network connectivity issues
-- Issue not found or access denied
-- File system errors (permissions, disk space)
 
 ## License
 
@@ -289,5 +289,4 @@ This program is licensed under GPL-3.0-or-later. See the LICENSE file for detail
 
 ## Attribution
 
-Generated by: Cursor (Claude)
-Copyright (C) 2025 Naveen Z. Malik 
+Generated by: Cursor (Claude) 

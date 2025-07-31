@@ -1,4 +1,4 @@
-name: Coverage Check
+name: MCP Server Coverage Check
 
 on:
   pull_request:
@@ -17,7 +17,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.10'
     
     - name: Install system dependencies
       run: sudo apt-get update && sudo apt-get install -y bc
@@ -27,9 +27,12 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r requirements-test.txt
+        pip install -e .
     
     - name: Run coverage analysis
-      run: make coverage
+      run: |
+        coverage run --source=mcp_jira_server --omit="mcp_jira_server/test_*.py" -m unittest discover mcp_jira_server/ -v
+        coverage xml
     
     - name: Check coverage threshold
       run: |
