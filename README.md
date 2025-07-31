@@ -1,8 +1,8 @@
 # MCP JIRA Server
 
-![PR Check](https://github.com/jewzaam/jira-extractor/workflows/PR%20Check/badge.svg)
-![Coverage Check](https://github.com/jewzaam/jira-extractor/workflows/Coverage%20Check/badge.svg)
-[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jewzaam/jira-extractor/main/.github/badges/coverage.json)](https://github.com/jewzaam/jira-extractor/actions/workflows/coverage-badge.yml)
+![PR Check](https://github.com/jewzaam/mcp-jira-server/workflows/PR%20Check/badge.svg)
+![Coverage Check](https://github.com/jewzaam/mcp-jira-server/workflows/Coverage%20Check/badge.svg)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jewzaam/mcp-jira-server/main/.github/badges/coverage.json)](https://github.com/jewzaam/mcp-jira-server/actions/workflows/coverage-badge.yml)
 
 A read-only Model Context Protocol (MCP) server that provides AI assistants with tools to search and retrieve JIRA issues. This server integrates with AI tools like Claude Desktop, VS Code, and other MCP-compatible clients.
 
@@ -25,8 +25,8 @@ A read-only Model Context Protocol (MCP) server that provides AI assistants with
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/jewzaam/jira-extractor.git
-   cd jira-extractor
+   git clone https://github.com/jewzaam/mcp-jira-server.git
+   cd mcp-jira-server
    ```
 
 2. Create and activate a virtual environment:
@@ -135,7 +135,7 @@ Add the server to your Claude Desktop configuration (`~/Library/Application Supp
     "jira": {
       "command": "python",
       "args": [
-        "/path/to/jira-extractor/mcp_jira_server/server.py",
+        "/path/to/mcp-jira-server/mcp_jira_server/server.py",
         "--config",
         "/path/to/your/config.yaml"
       ]
@@ -154,7 +154,7 @@ Configure the server in your VS Code MCP settings:
     "jira": {
       "command": "python",
       "args": ["-m", "mcp_jira_server.server"],
-      "cwd": "/path/to/jira-extractor"
+      "cwd": "/path/to/mcp-jira-server"
     }
   }
 }
