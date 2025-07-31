@@ -1,0 +1,75 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcp-jira-server"
+version = "1.0.0"
+description = "A read-only Model Context Protocol server for JIRA integration"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+authors = [
+    {name = "Naveen Z. Malik", email = "naveen.malik@example.com"}
+]
+keywords = ["mcp", "jira", "model-context-protocol", "ai", "assistant"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Communications :: Chat",
+    "Topic :: Office/Business :: Groupware",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "requests>=2.31.0",
+    "PyYAML>=6.0.1",
+    "urllib3>=2.1.0",
+    "mcp[cli]>=1.9.3",
+    "pydantic>=2.7.2",
+]
+
+[project.optional-dependencies]
+test = [
+    "coverage>=7.0",
+    "flake8>=6.0",
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/jewzaam/jira-extractor"
+"Bug Reports" = "https://github.com/jewzaam/jira-extractor/issues"
+"Source" = "https://github.com/jewzaam/jira-extractor"
+
+[project.scripts]
+mcp-jira-server = "mcp_jira_server.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mcp_jira_server", "jira_extractor"]
+
+[tool.coverage.run]
+source = ["mcp_jira_server", "jira_extractor"]
+omit = ["*/test_*.py", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
