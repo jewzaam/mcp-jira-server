@@ -30,7 +30,9 @@ jobs:
         pip install -e .
     
     - name: Run coverage analysis
-      run: make coverage
+      run: |
+        coverage run --source=mcp_jira_server --omit="mcp_jira_server/test_*.py" -m unittest discover mcp_jira_server/ -v
+        coverage xml
     
     - name: Check coverage threshold
       run: |
