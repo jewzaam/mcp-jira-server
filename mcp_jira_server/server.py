@@ -78,6 +78,208 @@ class IssueDetails(BaseModel):
     }
 
 
+class ProjectSummary(BaseModel):
+    """Basic information about a JIRA project."""
+    
+    key: str = Field(..., title="Project key", examples=["PROJ"])
+    name: str = Field(..., title="Project name")
+    project_type: str = Field(..., title="Project type", examples=["software"])
+    lead: Optional[str] = Field(None, title="Project lead username")
+    url: str = Field(..., title="Direct URL to the project")
+
+    model_config = {
+        "title": "ProjectSummary",
+        "extra": "ignore",
+    }
+
+
+class ProjectDetails(BaseModel):
+    """Detailed information about a JIRA project."""
+    
+    key: str = Field(..., title="Project key")
+    name: str = Field(..., title="Project name")
+    description: Optional[str] = Field(None, title="Project description")
+    project_type: str = Field(..., title="Project type")
+    lead: Optional[str] = Field(None, title="Project lead username")
+    url: str = Field(..., title="Direct URL to the project")
+    raw: Dict[str, Any] = Field(..., title="Full unmodified JIRA API response")
+
+    model_config = {
+        "title": "ProjectDetails",
+        "extra": "ignore",
+    }
+
+
+class FieldInfo(BaseModel):
+    """Information about a JIRA field."""
+    
+    id: str = Field(..., title="Field ID")
+    name: str = Field(..., title="Field name")
+    custom: bool = Field(..., title="Whether this is a custom field")
+    schema_type: Optional[str] = Field(None, title="Field data type")
+    
+    model_config = {
+        "title": "FieldInfo", 
+        "extra": "ignore",
+    }
+
+
+class IssueType(BaseModel):
+    """Information about a JIRA issue type."""
+    
+    id: str = Field(..., title="Issue type ID")
+    name: str = Field(..., title="Issue type name", examples=["Bug", "Story"])
+    description: Optional[str] = Field(None, title="Issue type description")
+    subtask: bool = Field(..., title="Whether this is a subtask type")
+    
+    model_config = {
+        "title": "IssueType",
+        "extra": "ignore",
+    }
+
+
+class StatusInfo(BaseModel):
+    """Information about a JIRA status."""
+    
+    id: str = Field(..., title="Status ID")
+    name: str = Field(..., title="Status name", examples=["Open", "In Progress"])
+    description: Optional[str] = Field(None, title="Status description")
+    category: Optional[str] = Field(None, title="Status category", examples=["To Do", "In Progress", "Done"])
+    
+    model_config = {
+        "title": "StatusInfo",
+        "extra": "ignore",
+    }
+
+
+class Priority(BaseModel):
+    """Information about a JIRA priority."""
+    
+    id: str = Field(..., title="Priority ID")
+    name: str = Field(..., title="Priority name", examples=["High", "Medium", "Low"])
+    description: Optional[str] = Field(None, title="Priority description")
+    
+    model_config = {
+        "title": "Priority",
+        "extra": "ignore",
+    }
+
+
+class UserInfo(BaseModel):
+    """Information about a JIRA user."""
+    
+    username: str = Field(..., title="Username")
+    display_name: str = Field(..., title="Display name")
+    email: Optional[str] = Field(None, title="Email address")
+    active: bool = Field(..., title="Whether user is active")
+    
+    model_config = {
+        "title": "UserInfo",
+        "extra": "ignore",
+    }
+
+
+class Comment(BaseModel):
+    """Information about a JIRA issue comment."""
+    
+    id: str = Field(..., title="Comment ID")
+    author: str = Field(..., title="Comment author username")
+    body: str = Field(..., title="Comment text")
+    created: str = Field(..., title="Creation timestamp")
+    updated: Optional[str] = Field(None, title="Last update timestamp")
+    
+    model_config = {
+        "title": "Comment",
+        "extra": "ignore",
+    }
+
+
+class Transition(BaseModel):
+    """Information about an available workflow transition."""
+    
+    id: str = Field(..., title="Transition ID")
+    name: str = Field(..., title="Transition name")
+    to_status: str = Field(..., title="Target status name")
+    
+    model_config = {
+        "title": "Transition",
+        "extra": "ignore",
+    }
+
+
+class IssueLink(BaseModel):
+    """Information about a link between JIRA issues."""
+    
+    issue_key: str = Field(..., title="Linked issue key")
+    link_type: str = Field(..., title="Link type name")
+    direction: str = Field(..., title="Link direction", examples=["inward", "outward"])
+    relationship: str = Field(..., title="Relationship description", examples=["blocks", "is blocked by"])
+    
+    model_config = {
+        "title": "IssueLink",
+        "extra": "ignore",
+    }
+
+
+class IssueRelationships(BaseModel):
+    """Complete relationship information for a JIRA issue."""
+    
+    issue_key: str = Field(..., title="Source issue key")
+    parent: Optional[str] = Field(None, title="Parent issue key (for subtasks)")
+    subtasks: List[str] = Field(default_factory=list, title="List of subtask keys")
+    issue_links: List[IssueLink] = Field(default_factory=list, title="Issue links")
+    remote_links_count: int = Field(0, title="Number of remote links")
+    
+    model_config = {
+        "title": "IssueRelationships",
+        "extra": "ignore",
+    }
+
+
+class DescendantTree(BaseModel):
+    """Tree structure of issue descendants."""
+    
+    root_issue: str = Field(..., title="Root issue key")
+    max_depth: int = Field(..., title="Maximum traversal depth")
+    total_issues: int = Field(..., title="Total number of issues found")
+    issues: List[IssueSummary] = Field(..., title="All descendant issues")
+    traversal_order: List[Dict[str, Any]] = Field(..., title="Order issues were discovered")
+    
+    model_config = {
+        "title": "DescendantTree", 
+        "extra": "ignore",
+    }
+
+
+class ParentInfo(BaseModel):
+    """Information about an issue's immediate parent."""
+    
+    issue_key: str = Field(..., title="Child issue key")
+    parent_key: Optional[str] = Field(None, title="Parent issue key (None if no parent)")
+    parent_summary: Optional[str] = Field(None, title="Parent issue summary")
+    parent_type: Optional[str] = Field(None, title="Type of parent relationship")
+    
+    model_config = {
+        "title": "ParentInfo",
+        "extra": "ignore",
+    }
+
+
+class AncestorTree(BaseModel):
+    """Tree structure of issue ancestors."""
+    
+    root_issue: str = Field(..., title="Starting issue key")
+    max_depth: int = Field(..., title="Maximum traversal depth")
+    total_ancestors: int = Field(..., title="Total number of ancestors found")
+    ancestors: List[IssueSummary] = Field(..., title="All ancestor issues")
+    traversal_order: List[Dict[str, Any]] = Field(..., title="Order ancestors were discovered")
+    
+    model_config = {
+        "title": "AncestorTree",
+        "extra": "ignore",
+    }
+
+
 ###############################################################################
 # Tools implementation                                                         #
 ###############################################################################
@@ -164,6 +366,288 @@ class JiraTools:
             "a positive integer (e.g., `7877`).  Example: `RFE-7877`."
         )
 
+    # ------------------------------------------------------------------
+    # Issue relationships
+    # ------------------------------------------------------------------
+    async def get_issue_relationships(self, issue_key: str) -> IssueRelationships:
+        """Get all relationships for a specific JIRA issue."""
+        issue_data = self._client.get_issue(issue_key, expand="issuelinks")
+        fields = issue_data.get("fields", {})
+        
+        # Extract parent (for subtasks)
+        parent = None
+        parent_data = fields.get("parent")
+        if parent_data:
+            parent = parent_data.get("key")
+        
+        # Extract subtasks
+        subtasks = []
+        subtask_data = fields.get("subtasks", [])
+        for subtask in subtask_data:
+            subtask_key = subtask.get("key")
+            if subtask_key:
+                subtasks.append(subtask_key)
+        
+        # Extract issue links
+        issue_links = []
+        links_data = fields.get("issuelinks", [])
+        for link in links_data:
+            link_type = link.get("type", {})
+            link_type_name = link_type.get("name", "unknown")
+            
+            # Handle inward links
+            inward_issue = link.get("inwardIssue")
+            if inward_issue:
+                issue_links.append(IssueLink(
+                    issue_key=inward_issue.get("key"),
+                    link_type=link_type_name,
+                    direction="inward",
+                    relationship=link_type.get("inward", "related")
+                ))
+            
+            # Handle outward links
+            outward_issue = link.get("outwardIssue")
+            if outward_issue:
+                issue_links.append(IssueLink(
+                    issue_key=outward_issue.get("key"),
+                    link_type=link_type_name,
+                    direction="outward",
+                    relationship=link_type.get("outward", "related")
+                ))
+        
+        # Count remote links
+        remote_links = self._client.get_remote_links(issue_key)
+        remote_links_count = len(remote_links)
+        
+        return IssueRelationships(
+            issue_key=issue_key,
+            parent=parent,
+            subtasks=subtasks,
+            issue_links=issue_links,
+            remote_links_count=remote_links_count
+        )
+
+    async def get_descendants(self, issue_key: str, max_depth: int = 3, 
+                             include_subtasks: bool = True, include_links: bool = True,
+                             include_parent_links: bool = False) -> DescendantTree:
+        """Get all descendants of an issue using the existing JiraClient traversal logic."""
+        descendants_data = self._client.get_descendants(
+            issue_key=issue_key,
+            depth=max_depth,
+            include_subtasks=include_subtasks,
+            include_links=include_links,
+            include_remote_links=False,  # We don't need remote links for descendants
+            include_parent_links=include_parent_links
+        )
+        
+        # Extract metadata
+        metadata = descendants_data.pop("_extraction_metadata", {})
+        traversal_order = metadata.get("traversal_order", [])
+        
+        # Convert issue data to IssueSummary objects
+        issues = []
+        for key, issue_data in descendants_data.items():
+            if key == issue_key:  # Skip the root issue itself
+                continue
+                
+            fields = issue_data.get("fields", {})
+            issues.append(IssueSummary(
+                key=key,
+                summary=fields.get("summary", ""),
+                status=fields.get("status", {}).get("name", ""),
+                url=f"{self._client.base_url}/browse/{key}"
+            ))
+        
+        return DescendantTree(
+            root_issue=issue_key,
+            max_depth=max_depth,
+            total_issues=len(issues),
+            issues=issues,
+            traversal_order=traversal_order
+        )
+
+    async def get_children(self, issue_key: str, include_parent_links: bool = False,
+                          parent_link_field: str = "Parent Link") -> List[IssueSummary]:
+        """Get direct children of an issue (subtasks and optionally parent-link children)."""
+        children = []
+        
+        # Get the issue to extract subtasks
+        issue_data = self._client.get_issue(issue_key)
+        fields = issue_data.get("fields", {})
+        
+        # Add subtasks
+        subtasks = fields.get("subtasks", [])
+        for subtask in subtasks:
+            subtask_key = subtask.get("key")
+            if subtask_key:
+                subtask_fields = subtask.get("fields", {})
+                children.append(IssueSummary(
+                    key=subtask_key,
+                    summary=subtask_fields.get("summary", ""),
+                    status=subtask_fields.get("status", {}).get("name", ""),
+                    url=f"{self._client.base_url}/browse/{subtask_key}"
+                ))
+        
+        # Add parent-link children if requested
+        if include_parent_links:
+            parent_link_children = self._client.get_parent_link_children(issue_key, parent_link_field)
+            for child_key in parent_link_children:
+                # Fetch details for each child
+                try:
+                    child_data = self._client.get_issue(child_key)
+                    child_fields = child_data.get("fields", {})
+                    children.append(IssueSummary(
+                        key=child_key,
+                        summary=child_fields.get("summary", ""),
+                        status=child_fields.get("status", {}).get("name", ""),
+                        url=f"{self._client.base_url}/browse/{child_key}"
+                    ))
+                except Exception as e:
+                    self._logger.warning(f"Could not fetch details for parent-link child {child_key}: {e}")
+                    continue
+        
+        return children
+
+    async def get_linked_issues(self, issue_key: str, link_type: Optional[str] = None) -> List[IssueLink]:
+        """Get issues linked to the specified issue via JIRA issue links."""
+        issue_data = self._client.get_issue(issue_key, expand="issuelinks")
+        fields = issue_data.get("fields", {})
+        
+        issue_links = []
+        links_data = fields.get("issuelinks", [])
+        
+        for link in links_data:
+            link_type_data = link.get("type", {})
+            link_type_name = link_type_data.get("name", "unknown")
+            
+            # Skip if filtering by link type and this doesn't match
+            if link_type and link_type_name.lower() != link_type.lower():
+                continue
+            
+            # Handle inward links
+            inward_issue = link.get("inwardIssue")
+            if inward_issue:
+                issue_links.append(IssueLink(
+                    issue_key=inward_issue.get("key"),
+                    link_type=link_type_name,
+                    direction="inward",
+                    relationship=link_type_data.get("inward", "related")
+                ))
+            
+            # Handle outward links
+            outward_issue = link.get("outwardIssue")
+            if outward_issue:
+                issue_links.append(IssueLink(
+                    issue_key=outward_issue.get("key"),
+                    link_type=link_type_name,
+                    direction="outward",
+                    relationship=link_type_data.get("outward", "related")
+                ))
+        
+        return issue_links
+
+    async def get_parent(self, issue_key: str, include_parent_links: bool = True,
+                        parent_link_field: str = "Parent Link") -> ParentInfo:
+        """Get the immediate parent of an issue."""
+        issue_data = self._client.get_issue(issue_key, expand="parent")
+        fields = issue_data.get("fields", {})
+        
+        parent_key = None
+        parent_summary = None
+        parent_type = None
+        
+        # Check for subtask parent first
+        parent = fields.get("parent")
+        if parent:
+            parent_key = parent.get("key")
+            parent_summary = parent.get("fields", {}).get("summary", "")
+            parent_type = "subtask"
+        
+        # Check for custom parent link field if no subtask parent found and enabled
+        elif include_parent_links:
+            field_metadata = self._client.get_field_by_name(parent_link_field)
+            if field_metadata:
+                field_id = field_metadata.get("id")
+                if field_id:
+                    parent_link = fields.get(field_id)
+                    if parent_link:
+                        parent_key = parent_link
+                        parent_type = f"parent_link({parent_link_field})"
+                        
+                        # Fetch parent summary
+                        try:
+                            parent_data = self._client.get_issue(parent_key)
+                            parent_summary = parent_data.get("fields", {}).get("summary", "")
+                        except Exception as e:
+                            self._logger.warning(f"Could not fetch parent {parent_key} details: {e}")
+        
+        return ParentInfo(
+            issue_key=issue_key,
+            parent_key=parent_key,
+            parent_summary=parent_summary,
+            parent_type=parent_type
+        )
+
+    async def get_ancestors(self, issue_key: str, max_depth: int = 5,
+                           include_parent_links: bool = True,
+                           parent_link_field: str = "Parent Link") -> AncestorTree:
+        """Get all ancestors of an issue by following parent relationships recursively."""
+        ancestors = []
+        traversal_order = []
+        visited = set()
+        current_key = issue_key
+        current_depth = 0
+        
+        while current_key and current_key not in visited and (max_depth == -1 or current_depth < max_depth):
+            visited.add(current_key)
+            
+            # Get parent of current issue
+            parent_info = await self.get_parent(current_key, include_parent_links, parent_link_field)
+            
+            if parent_info.parent_key:
+                # Check if parent is already visited (cycle detection)
+                if parent_info.parent_key in visited:
+                    self._logger.debug(f"Cycle detected: {parent_info.parent_key} already visited")
+                    break
+                
+                # Fetch full parent details
+                try:
+                    parent_data = self._client.get_issue(parent_info.parent_key)
+                    parent_fields = parent_data.get("fields", {})
+                    
+                    ancestor_summary = IssueSummary(
+                        key=parent_info.parent_key,
+                        summary=parent_fields.get("summary", ""),
+                        status=parent_fields.get("status", {}).get("name", ""),
+                        url=f"{self._client.base_url}/browse/{parent_info.parent_key}"
+                    )
+                    
+                    ancestors.append(ancestor_summary)
+                    traversal_order.append({
+                        "issue_key": parent_info.parent_key,
+                        "depth": current_depth,
+                        "parent_type": parent_info.parent_type
+                    })
+                    
+                    # Move to parent for next iteration
+                    current_key = parent_info.parent_key
+                    current_depth += 1
+                    
+                except Exception as e:
+                    self._logger.warning(f"Could not fetch ancestor {parent_info.parent_key}: {e}")
+                    break
+            else:
+                # No parent found, stop traversal
+                break
+        
+        return AncestorTree(
+            root_issue=issue_key,
+            max_depth=max_depth,
+            total_ancestors=len(ancestors),
+            ancestors=ancestors,
+            traversal_order=traversal_order
+        )
+
 
 ###############################################################################
 # Server factory                                                               #
@@ -192,8 +676,19 @@ def create_server(
     mcp = FastMCP(
         name="JIRA Read-Only MCP Server",
         instructions=(
-            "You are a helpful assistant that provides access to read-only JIRA information. "
-            "Use the search and get_issue tools to help users retrieve issue data."
+            "You are a JIRA expert assistant with comprehensive read-only access to JIRA data. "
+            "WORKFLOW GUIDANCE: "
+            "1. START with search_issues() to find relevant issues by project, status, or content "
+            "2. Use get_issue() for detailed information about specific issues "
+            "3. EXPLORE RELATIONSHIPS with: "
+            "   - get_issue_relationships() for relationship overview "
+            "   - get_descendants() for impact analysis (what depends on this?) "
+            "   - get_ancestors() for context (what is this part of?) "
+            "   - get_children() for immediate children only "
+            "   - get_parent() for immediate parent only "
+            "   - get_linked_issues() for horizontal relationships (blocks, depends) "
+            "4. Use identifier_hint() when users provide invalid issue keys "
+            "CHOOSE TOOLS WISELY: Use specific relationship tools based on user needs rather than always using the broadest option."
         ),
     )
 
@@ -206,8 +701,11 @@ def create_server(
     @mcp.tool(
         name="search_issues",
         description=(
-            "Search JIRA for issues. Accepts either full JQL or a simple search term. "
-            "Returns a list of matching issues with key, summary, status, and URL."
+            "Search JIRA for issues using JQL queries or simple text. Use this as your starting point "
+            "to find issues by project, status, assignee, text content, or any JIRA field. "
+            "Automatically detects JQL (if contains =, AND, OR) vs simple text search. "
+            "Returns basic issue info - use get_issue() for full details of specific issues. "
+            "Example: 'project = PROJ AND status = Open' or 'authentication bug'"
         ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
@@ -221,7 +719,12 @@ def create_server(
 
     @mcp.tool(
         name="get_issue",
-        description="Retrieve detailed information for a single JIRA issue.",
+        description=(
+            "Get comprehensive details for a specific JIRA issue including description, fields, "
+            "status, assignee, and full raw data. Use this after search_issues() to get complete "
+            "information about specific issues you've identified. The 'expand' parameter can "
+            "include additional data like 'changelog,comments,attachments'."
+        ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
             destructiveHint=False,
@@ -234,7 +737,11 @@ def create_server(
 
     @mcp.tool(
         name="identifier_hint",
-        description="Return a short text explaining the PROJECT-NUMBER pattern (e.g., RFE-7877).",
+        description=(
+            "Get help with JIRA issue key format (PROJECT-NUMBER pattern like PROJ-123). "
+            "Use this when users provide invalid issue keys or need guidance on the expected format. "
+            "Useful for explaining JIRA issue identifier structure to users."
+        ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
             destructiveHint=False,
@@ -244,6 +751,137 @@ def create_server(
     )
     async def identifier_hint_tool() -> str:
         return await tools.identifier_hint()
+
+    @mcp.tool(
+        name="get_issue_relationships",
+        description=(
+            "Get a comprehensive overview of all relationships for an issue: parent, subtasks, "
+            "issue links (blocks/depends), and remote links. Use this for a quick relationship "
+            "summary before diving deeper with get_children(), get_parent(), or get_descendants(). "
+            "Ideal for understanding an issue's context within the project hierarchy."
+        ),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def get_issue_relationships_tool(issue_key: str) -> IssueRelationships:
+        return await tools.get_issue_relationships(issue_key)
+
+    @mcp.tool(
+        name="get_descendants",
+        description=(
+            "Traverse DOWN the issue hierarchy to find all child issues, grandchildren, etc. "
+            "Follows subtask relationships and issue links (blocks/depends) to build a complete "
+            "descendant tree. Use for impact analysis: 'What work depends on this issue?' "
+            "Default depth=3 levels for performance. Use max_depth=-1 for unlimited traversal "
+            "(caution: can be slow on large hierarchies). Complements get_ancestors()."
+        ),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def get_descendants_tool(
+        issue_key: str, 
+        max_depth: int = 3,
+        include_subtasks: bool = True,
+        include_links: bool = True,
+        include_parent_links: bool = False
+    ) -> DescendantTree:
+        return await tools.get_descendants(
+            issue_key, max_depth, include_subtasks, include_links, include_parent_links
+        )
+
+    @mcp.tool(
+        name="get_children",
+        description=(
+            "Get immediate children only (1 level down) - subtasks and optionally custom "
+            "parent-link field children. Use this instead of get_descendants() when you only "
+            "need direct children, not the full hierarchy. Faster and more focused than "
+            "get_descendants() with max_depth=1. Commonly used for Epic→Story or Story→Task relationships."
+        ),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def get_children_tool(
+        issue_key: str,
+        include_parent_links: bool = False,
+        parent_link_field: str = "Parent Link"
+    ) -> List[IssueSummary]:
+        return await tools.get_children(issue_key, include_parent_links, parent_link_field)
+
+    @mcp.tool(
+        name="get_linked_issues",
+        description=(
+            "Get horizontally linked issues (blocks, depends on, relates to, etc.) without "
+            "hierarchy traversal. Use for finding related work at the same level, dependencies, "
+            "or blocking relationships. Filter by link_type (e.g., 'blocks', 'depends') to focus "
+            "on specific relationship types. Different from parent/child relationships."
+        ),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def get_linked_issues_tool(issue_key: str, link_type: Optional[str] = None) -> List[IssueLink]:
+        return await tools.get_linked_issues(issue_key, link_type)
+
+    @mcp.tool(
+        name="get_parent",
+        description=(
+            "Get the immediate parent issue (1 level up) through subtask or custom parent-link "
+            "relationships. Use to find what Epic contains this Story, or what Story contains "
+            "this Task. Returns None if no parent exists. For full parent chain, use get_ancestors(). "
+            "Handles both standard JIRA subtasks and custom Epic Link fields."
+        ),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def get_parent_tool(
+        issue_key: str,
+        include_parent_links: bool = True,
+        parent_link_field: str = "Parent Link"
+    ) -> ParentInfo:
+        return await tools.get_parent(issue_key, include_parent_links, parent_link_field)
+
+    @mcp.tool(
+        name="get_ancestors",
+        description=(
+            "Traverse UP the issue hierarchy to find all parent issues, grandparents, etc. "
+            "Follows parent relationships to the root of the hierarchy. Use for understanding "
+            "the full context: 'What Epic/Initiative does this task belong to?' "
+            "Default depth=5 levels (ancestors are usually linear chains). Use max_depth=-1 "
+            "for unlimited traversal. Complements get_descendants() for full hierarchy view."
+        ),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def get_ancestors_tool(
+        issue_key: str,
+        max_depth: int = 5,
+        include_parent_links: bool = True,
+        parent_link_field: str = "Parent Link"
+    ) -> AncestorTree:
+        return await tools.get_ancestors(issue_key, max_depth, include_parent_links, parent_link_field)
 
     return mcp
 

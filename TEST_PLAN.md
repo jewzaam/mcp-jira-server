@@ -1,6 +1,6 @@
 # MCP JIRA Server Test Plan
 
-This document maps 1:1 to unit tests in the codebase. Each test item corresponds to a specific test method for the MCP JIRA server.
+This document maps 1:1 to unit tests in the codebase. Each test item corresponds to a specific test method for the MCP JIRA server.  Validation is done by a human, checking that implementation meets intent of the test, not just technically the literal interpretation of the description.
 
 ## CONFIG - Configuration Management
 
@@ -33,6 +33,30 @@ This document maps 1:1 to unit tests in the codebase. Each test item corresponds
 | TOOLS-09 | Get issue with expand parameter | |
 | TOOLS-10 | Get issue returns proper IssueDetails object | |
 | TOOLS-11 | Identifier hint returns expected format description | |
+| TOOLS-12 | Get issue relationships with all relationship types | |
+| TOOLS-13 | Get issue relationships with no relationships | |
+| TOOLS-14 | Get issue relationships link parsing | |
+| TOOLS-15 | Get descendants basic functionality | |
+| TOOLS-16 | Get descendants excludes root issue from results | |
+| TOOLS-17 | Get descendants with custom parameters | |
+| TOOLS-18 | Get children with subtasks only | |
+| TOOLS-19 | Get children with parent links enabled | |
+| TOOLS-20 | Get children handles parent link fetch errors gracefully | |
+| TOOLS-21 | Get linked issues returns all links | |
+| TOOLS-22 | Get linked issues with link type filter | |
+| TOOLS-23 | Get linked issues with case-insensitive filter | |
+| TOOLS-24 | Get linked issues with no matching links | |
+| TOOLS-25 | Get linked issues handles missing or malformed link data | |
+| TOOLS-26 | Get parent with subtask parent relationship | |
+| TOOLS-27 | Get parent with no parent relationship | |
+| TOOLS-28 | Get parent with custom parent link field | |
+| TOOLS-29 | Get parent with parent link field containing value | |
+| TOOLS-30 | Get ancestors with single level hierarchy | |
+| TOOLS-31 | Get ancestors with multi-level hierarchy | |
+| TOOLS-32 | Get ancestors with depth limit | |
+| TOOLS-33 | Get ancestors for issue with no parents | |
+| TOOLS-34 | Get ancestors handles parent fetch errors gracefully | |
+| TOOLS-35 | Get ancestors prevents infinite loops from cycles | |
 
 ## SERVER - MCP Server Creation and Configuration
 
@@ -43,7 +67,7 @@ This document maps 1:1 to unit tests in the codebase. Each test item corresponds
 | SERVER-03 | Create server with username/token auth | |
 | SERVER-04 | Create server with bearer token auth | |
 | SERVER-05 | Server has correct name and instructions | |
-| SERVER-06 | Server registers all three tools | |
+| SERVER-06 | Server registers all nine tools | |
 | SERVER-07 | Tools have correct annotations (read-only, idempotent) | |
 
 ## CLI - Command Line Interface
