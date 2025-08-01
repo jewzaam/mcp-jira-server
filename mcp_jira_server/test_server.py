@@ -93,23 +93,27 @@ class TestServer(unittest.TestCase):
         mock_fastmcp.assert_called_once()
         call_args = mock_fastmcp.call_args
         self.assertEqual(call_args[1]["name"], "JIRA Read-Only MCP Server")
-        self.assertIn("helpful assistant", call_args[1]["instructions"])
+        self.assertIn("JIRA expert assistant", call_args[1]["instructions"])
 
     @patch("mcp_jira_server.server.JiraClient")
     @patch("mcp_jira_server.server.FastMCP")
-    def test_server_06_server_registers_all_three_tools(self, mock_fastmcp, mock_client):
-        """SERVER-06: Server registers all three tools."""
+    def test_server_06_server_registers_all_nine_tools(self, mock_fastmcp, mock_client):
+        """SERVER-06: Server registers all nine tools."""
         mock_server = Mock()
         mock_fastmcp.return_value = mock_server
         
         create_server(url="https://test.jira.com")
         
-        # Check that tool decorator was called 3 times
-        self.assertEqual(mock_server.tool.call_count, 3)
+        # Check that tool decorator was called 9 times
+        self.assertEqual(mock_server.tool.call_count, 9)
         
         # Check tool names
         tool_names = [call[1]["name"] for call in mock_server.tool.call_args_list]
-        expected_names = ["search_issues", "get_issue", "identifier_hint"]
+        expected_names = [
+            "search_issues", "get_issue", "identifier_hint",
+            "get_issue_relationships", "get_descendants", "get_children", "get_linked_issues",
+            "get_parent", "get_ancestors"
+        ]
         for name in expected_names:
             self.assertIn(name, tool_names)
 

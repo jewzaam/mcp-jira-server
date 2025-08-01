@@ -162,9 +162,11 @@ Configure the server in your VS Code MCP settings:
 
 ## Available Tools
 
-The server provides three MCP tools:
+The server provides seven MCP tools:
 
-### 1. `search_issues`
+### Basic Tools
+
+#### 1. `search_issues`
 Search for JIRA issues using JQL or simple text queries.
 
 **Parameters:**
@@ -175,7 +177,7 @@ Search for JIRA issues using JQL or simple text queries.
 - Simple text: `"bug in authentication"`
 - JQL query: `"project = PROJ AND status = Open"`
 
-### 2. `get_issue` 
+#### 2. `get_issue` 
 Retrieve detailed information about a specific JIRA issue.
 
 **Parameters:**
@@ -186,12 +188,90 @@ Retrieve detailed information about a specific JIRA issue.
 - Get issue: `"PROJ-123"`
 - With expansion: `"PROJ-123"` with expand `"changelog,comments"`
 
-### 3. `identifier_hint`
+#### 3. `identifier_hint`
 Get help about JIRA issue identifier format.
 
 **Parameters:** None
 
 **Returns:** Description of valid JIRA issue key patterns.
+
+### Relationship Discovery Tools
+
+#### 4. `get_issue_relationships`
+Get comprehensive relationship information for a specific JIRA issue.
+
+**Parameters:**
+- `issue_key` (string): JIRA issue key (e.g., "PROJ-123")
+
+**Returns:** Complete relationship data including:
+- Parent issue (for subtasks)
+- List of subtask keys
+- Issue links with type and direction
+- Count of remote links
+
+#### 5. `get_descendants`
+Get all descendants of an issue based on relationship types and traversal depth.
+
+**Parameters:**
+- `issue_key` (string): Root JIRA issue key
+- `max_depth` (int, optional): Maximum traversal depth (-1 for unlimited, default: 3)
+- `include_subtasks` (bool, optional): Include subtask relationships (default: true)
+- `include_links` (bool, optional): Include issue links (default: true)
+- `include_parent_links` (bool, optional): Include custom parent-link fields (default: false)
+
+**Returns:** Tree structure with all descendant issues and traversal metadata.
+
+#### 6. `get_children`
+Get direct children of an issue (subtasks and optionally parent-link children).
+
+**Parameters:**
+- `issue_key` (string): Parent JIRA issue key
+- `include_parent_links` (bool, optional): Include custom parent-link children (default: false)
+- `parent_link_field` (string, optional): Name of parent link field (default: "Parent Link")
+
+**Returns:** List of immediate child issues.
+
+#### 7. `get_linked_issues`
+Get issues linked to the specified issue via JIRA issue links.
+
+**Parameters:**
+- `issue_key` (string): JIRA issue key
+- `link_type` (string, optional): Filter by specific link type (case-insensitive)
+
+**Returns:** List of linked issues with link type, direction, and relationship details.
+
+#### 8. `get_parent`
+Get the immediate parent of a JIRA issue.
+
+**Parameters:**
+- `issue_key` (string): JIRA issue key
+- `include_parent_links` (boolean, optional): Include custom parent link fields (default: true)
+- `parent_link_field` (string, optional): Name of parent link field (default: "Parent Link")
+
+**Returns:** Parent information including parent key, summary, and relationship type.
+
+**Example:**
+```
+get_parent("PROJ-123")
+# Returns: ParentInfo with parent_key, parent_summary, parent_type
+```
+
+#### 9. `get_ancestors`
+Get all ancestors of a JIRA issue by following parent relationships recursively.
+
+**Parameters:**
+- `issue_key` (string): JIRA issue key  
+- `max_depth` (int, optional): Maximum traversal depth (-1 for unlimited, default: 5)
+- `include_parent_links` (boolean, optional): Include custom parent link fields (default: true)
+- `parent_link_field` (string, optional): Name of parent link field (default: "Parent Link")
+
+**Returns:** Tree structure with all ancestor issues, traversal order, and metadata.
+
+**Example:**
+```
+get_ancestors("PROJ-123", max_depth=3)
+# Returns: AncestorTree with ancestors list, traversal_order, and metadata
+```
 
 ## Development
 
