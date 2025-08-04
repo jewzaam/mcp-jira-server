@@ -26,8 +26,12 @@ import logging
 from urllib.parse import urljoin
 
 from pydantic import BaseModel, Field
+from cachetools import TTLCache
 
 from .config import load_config, ConfigError
+
+# Default TTL for field discovery cache (1 hour)
+DEFAULT_FIELD_CACHE_TTL = 3600
 
 try:
     from mcp.server.fastmcp import FastMCP
@@ -287,9 +291,10 @@ class AncestorTree(BaseModel):
 class JiraTools:
     """Collection of MCP *tools* backed by :class:`JiraClient`."""
 
-    def __init__(self, client: JiraClient):
+    def __init__(self, client: JiraClient, field_cache_ttl: int = DEFAULT_FIELD_CACHE_TTL):
         self._client = client
         self._logger = logging.getLogger(__name__).getChild("JiraTools")
+        self._field_cache = TTLCache(maxsize=100, ttl=field_cache_ttl)
 
     # ---------------------------------------------------------------------
     # Search
@@ -365,6 +370,51 @@ class JiraTools:
             "is an uppercase project key consisting of letters (e.g., `RFE`) and `<NUMBER>` is "
             "a positive integer (e.g., `7877`).  Example: `RFE-7877`."
         )
+
+    # ------------------------------------------------------------------
+    # Field discovery for parent relationships
+    # ------------------------------------------------------------------
+    def _get_parent_fields_for_issue(self, issue_key: str, project: str, issue_type: str) -> List[str]:
+        """Discover parent fields for a specific project:issue_type combination."""
+        cache_key = f"{project}::{issue_type}"
+        
+        # Check cache first
+        try:
+            cached_fields = self._field_cache[cache_key]
+            self._logger.debug(f"Using cached parent fields for {cache_key}: {cached_fields}")
+            return cached_fields
+        except KeyError:
+            pass  # Cache miss
+        
+        # Query editmeta for this issue to discover parent fields
+        parent_fields = []
+        try:
+            url = urljoin(self._client.api_base, f"issue/{issue_key}/editmeta")
+            response = self._client._make_api_request(url, resource_name="editmeta")
+            
+            fields = response.get("fields", {})
+            for field_id, field_info in fields.items():
+                schema = field_info.get("schema", {})
+                custom_type = schema.get("custom", "")
+                
+                # Identify parent-type fields by their schema custom type
+                if custom_type in [
+                    "com.pyxis.greenhopper.jira:gh-epic-link",      # Epic Link fields
+                    "com.atlassian.jpo:jpo-custom-field-parent"     # Parent Link fields
+                ]:
+                    parent_fields.append(field_id)
+                    self._logger.debug(f"Found parent field {field_id} ({field_info.get('name', 'Unknown')}) for {cache_key}")
+            
+            # Cache the discovered fields
+            self._field_cache[cache_key] = parent_fields
+            self._logger.debug(f"Cached parent fields for {cache_key}: {parent_fields}")
+            
+        except Exception as e:
+            self._logger.warning(f"Failed to discover parent fields for {cache_key}: {e}")
+            # Return fallback field IDs based on our known patterns
+            parent_fields = ["customfield_12311140", "customfield_12313140"]
+            
+        return parent_fields
 
     # ------------------------------------------------------------------
     # Issue relationships
@@ -548,7 +598,7 @@ class JiraTools:
 
     async def get_parent(self, issue_key: str, include_parent_links: bool = True,
                         parent_link_field: str = "Parent Link") -> ParentInfo:
-        """Get the immediate parent of an issue."""
+        """Get the immediate parent of an issue using dynamic field discovery."""
         issue_data = self._client.get_issue(issue_key, expand="parent")
         fields = issue_data.get("fields", {})
         
@@ -563,16 +613,22 @@ class JiraTools:
             parent_summary = parent.get("fields", {}).get("summary", "")
             parent_type = "subtask"
         
-        # Check for custom parent link field if no subtask parent found and enabled
+        # Check for custom parent link fields if no subtask parent found and enabled
         elif include_parent_links:
-            field_metadata = self._client.get_field_by_name(parent_link_field)
-            if field_metadata:
-                field_id = field_metadata.get("id")
-                if field_id:
+            # Extract project and issue type for field discovery
+            project = fields.get("project", {}).get("key", "")
+            issue_type = fields.get("issuetype", {}).get("name", "")
+            
+            if project and issue_type:
+                # Get potential parent fields for this issue type
+                parent_field_ids = self._get_parent_fields_for_issue(issue_key, project, issue_type)
+                
+                # Try each discovered parent field until we find one with a value
+                for field_id in parent_field_ids:
                     parent_link = fields.get(field_id)
                     if parent_link:
                         parent_key = parent_link
-                        parent_type = f"parent_link({parent_link_field})"
+                        parent_type = f"parent_field({field_id})"
                         
                         # Fetch parent summary
                         try:
@@ -580,6 +636,27 @@ class JiraTools:
                             parent_summary = parent_data.get("fields", {}).get("summary", "")
                         except Exception as e:
                             self._logger.warning(f"Could not fetch parent {parent_key} details: {e}")
+                        
+                        break  # Found a parent, stop looking
+                
+            # Fallback to old field name lookup if dynamic discovery failed or was skipped
+            if not parent_key:
+                self._logger.debug(f"Dynamic field discovery found no parent for {issue_key}, trying field name lookup")
+                field_metadata = self._client.get_field_by_name(parent_link_field)
+                if field_metadata:
+                    field_id = field_metadata.get("id")
+                    if field_id:
+                        parent_link = fields.get(field_id)
+                        if parent_link:
+                            parent_key = parent_link
+                            parent_type = f"parent_link({parent_link_field})"
+                            
+                            # Fetch parent summary
+                            try:
+                                parent_data = self._client.get_issue(parent_key)
+                                parent_summary = parent_data.get("fields", {}).get("summary", "")
+                            except Exception as e:
+                                self._logger.warning(f"Could not fetch parent {parent_key} details: {e}")
         
         return ParentInfo(
             issue_key=issue_key,
@@ -660,6 +737,7 @@ def create_server(
     password: Optional[str] = None,
     token: Optional[str] = None,
     bearer_token: Optional[str] = None,
+    field_cache_ttl: int = DEFAULT_FIELD_CACHE_TTL,
 ) -> FastMCP:
     """Create and configure a FastMCP server instance."""
 
@@ -692,7 +770,7 @@ def create_server(
         ),
     )
 
-    tools = JiraTools(client)
+    tools = JiraTools(client, field_cache_ttl)
 
     # ------------------------------------------------------------------
     # Register tools                                                    #
@@ -920,6 +998,7 @@ async def _async_main() -> None:
     password = args.password or cfg.get("password")
     token = args.token or cfg.get("token")
     bearer_token = args.bearer_token or cfg.get("bearer_token")
+    field_cache_ttl = cfg.get("field_cache_ttl", DEFAULT_FIELD_CACHE_TTL)  # Default: 1 hour
 
     if not url:
         raise ConfigError(
@@ -932,6 +1011,7 @@ async def _async_main() -> None:
         password=password,
         token=token,
         bearer_token=bearer_token,
+        field_cache_ttl=field_cache_ttl,
     )
 
     await server.run_async()  # Use the async version
@@ -971,6 +1051,7 @@ def main() -> None:  # pragma: no cover
         password = args.password or cfg.get("password")
         token = args.token or cfg.get("token")
         bearer_token = args.bearer_token or cfg.get("bearer_token")
+        field_cache_ttl = cfg.get("field_cache_ttl", DEFAULT_FIELD_CACHE_TTL)  # Default: 1 hour
 
         if not url:
             raise ConfigError(
@@ -983,6 +1064,7 @@ def main() -> None:  # pragma: no cover
             password=password,
             token=token,
             bearer_token=bearer_token,
+            field_cache_ttl=field_cache_ttl,
         )
 
         # Run synchronously
