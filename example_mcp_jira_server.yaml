@@ -1,6 +1,9 @@
 # Test configuration for Red Hat JIRA
 url: https://issues.redhat.com
 
+# TTL is 1 hour by default
+field_cache_ttl: 3600
+
 # No authentication needed for public issues on Red Hat JIRA
 # username: your_username
 # password: your_password  

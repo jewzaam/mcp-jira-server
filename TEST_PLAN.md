@@ -57,6 +57,16 @@ This document maps 1:1 to unit tests in the codebase. Each test item corresponds
 | TOOLS-33 | Get ancestors for issue with no parents | |
 | TOOLS-34 | Get ancestors handles parent fetch errors gracefully | |
 | TOOLS-35 | Get ancestors prevents infinite loops from cycles | |
+| TOOLS-36 | Dynamic field discovery via editmeta API | |
+| TOOLS-37 | TTL cache stores and retrieves field mappings | |
+| TOOLS-38 | TTL cache expires entries after configured timeout | |
+| TOOLS-39 | Get parent uses discovered fields before fallback | |
+| TOOLS-40 | Get parent fallback when editmeta fails | |
+| TOOLS-41 | Get parent chooses first field when multiple have values | |
+| TOOLS-42 | Field discovery handles missing project/issue type | |
+| TOOLS-43 | Field discovery identifies Epic Link schema type | |
+| TOOLS-44 | Field discovery identifies Parent Link schema type | |
+| TOOLS-45 | Get ancestors with dynamic field discovery | |
 
 ## SERVER - MCP Server Creation and Configuration
 

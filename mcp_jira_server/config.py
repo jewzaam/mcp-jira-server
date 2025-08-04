@@ -18,6 +18,7 @@ username: myuser            # for password or token auth
 password: mypass            # basic auth
 token: myapitoken           # basic auth (with username)
 bearer_token: abc123        # Personal Access Token (no username needed)
+field_cache_ttl: 3600       # TTL for field discovery cache in seconds (default: 3600 = 1 hour)
 ```
 """
 

@@ -64,7 +64,8 @@ class TestCLI(unittest.TestCase):
             username="cliuser",
             password="clipass",
             token="clitoken",
-            bearer_token="clibearer"
+            bearer_token="clibearer",
+            field_cache_ttl=3600
         )
 
     @patch("mcp_jira_server.server.load_config")
@@ -136,7 +137,8 @@ class TestCLI(unittest.TestCase):
             username="overrideuser",         # CLI overrides config
             password=None,
             token="configtoken",             # Config value used
-            bearer_token=None
+            bearer_token=None,
+            field_cache_ttl=3600
         )
 
     @patch("mcp_jira_server.server.load_config")
