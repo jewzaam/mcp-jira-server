@@ -75,19 +75,19 @@ test: setup lint test-all  ## Run all unit tests with linting
 
 test-config: setup  ## Run configuration module tests
 	@printf "$(YELLOW)Running configuration tests...$(RESET)\n"
-	$(PYTHON) -m unittest mcp_jira_server.test_config -v
+	$(PYTHON) -m pytest mcp_jira_server/test_config.py -v
 
 test-server: setup  ## Run server module tests
 	@printf "$(YELLOW)Running server tests...$(RESET)\n"
-	$(PYTHON) -m unittest mcp_jira_server.test_server -v
+	$(PYTHON) -m pytest mcp_jira_server/test_server.py -v
 
 test-all: setup  ## Run all tests (internal target)
 	@printf "$(YELLOW)Running all unit tests...$(RESET)\n"
-	$(PYTHON) -m unittest discover mcp_jira_server/ -v
+	$(PYTHON) -m pytest mcp_jira_server/ -v
 
 test-verbose: setup lint  ## Run tests with maximum verbosity and linting
 	@printf "$(YELLOW)Running all tests with detailed output...$(RESET)\n"
-	$(PYTHON) -m unittest discover mcp_jira_server/ -v 2>&1 | cat
+	$(PYTHON) -m pytest mcp_jira_server/ -v 2>&1 | cat
 
 test-no-lint: setup test-all  ## Run all unit tests without linting
 	@printf "$(GREEN)All tests completed successfully (no linting)!$(RESET)\n"
@@ -138,7 +138,7 @@ test-mcp-server: setup ## Test MCP server functionality (requires JIRA_URL, JIRA
 
 coverage: install-requirements-test ## Run tests with coverage and generate reports
 	@printf "$(BLUE)Running tests with coverage...$(RESET)\n"
-	@$(VENV_DIR)/bin/coverage run --source=mcp_jira_server --omit="mcp_jira_server/test_*.py" -m unittest discover mcp_jira_server/ -v
+	@$(VENV_DIR)/bin/coverage run --source=mcp_jira_server --omit="mcp_jira_server/test_*.py" -m pytest mcp_jira_server/ -v
 	@printf "$(YELLOW)Generating coverage report...$(RESET)\n"
 	@$(VENV_DIR)/bin/coverage report -m
 	@$(VENV_DIR)/bin/coverage xml
@@ -146,7 +146,7 @@ coverage: install-requirements-test ## Run tests with coverage and generate repo
 
 coverage-html: install-requirements-test ## Generate HTML coverage report
 	@printf "$(BLUE)Running tests with coverage and generating HTML report...$(RESET)\n"
-	@$(VENV_DIR)/bin/coverage run --source=mcp_jira_server --omit="mcp_jira_server/test_*.py" -m unittest discover mcp_jira_server/ -v
+	@$(VENV_DIR)/bin/coverage run --source=mcp_jira_server --omit="mcp_jira_server/test_*.py" -m pytest mcp_jira_server/ -v
 	@$(VENV_DIR)/bin/coverage html
 	@printf "$(GREEN)HTML coverage report generated in htmlcov/ directory$(RESET)\n"
 	@printf "$(CYAN)Open htmlcov/index.html in your browser to view the report$(RESET)\n"

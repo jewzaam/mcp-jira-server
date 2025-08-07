@@ -9,7 +9,6 @@ These models define the structure of data returned by MCP tools.
 
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
-from datetime import datetime
 
 
 @dataclass
@@ -56,5 +55,3 @@ class PagedResult:
     page_size: int          # Items per page (requested)
     current_page: int       # Current page number (0-based)
     has_more: bool          # True if more pages available
-
-

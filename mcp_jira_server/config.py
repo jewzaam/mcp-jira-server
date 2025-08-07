@@ -11,6 +11,60 @@ This module follows the TDD-driven architecture from the unit tests.
 
 from typing import Dict, Any, Optional
 import logging
+import os
+import re
+import warnings
+from pathlib import Path
+
+import yaml
+import requests
+from requests.exceptions import ConnectionError, RequestException
+
+# Module-level configuration storage (singleton pattern)
+_config: Optional[Dict[str, Any]] = None
+_field_cache: Dict[str, list] = {}  # Single field cache for all combinations
+
+# Set up logging
+logger = logging.getLogger(__name__)
+
+
+def make_jira_request(rest_path: str, params: Optional[Dict[str, Any]] = None, timeout: int = 30) -> requests.Response:
+    """Make an authenticated request to the JIRA REST API.
+
+    Uses the module-level configuration for base URL and authentication.
+
+    Args:
+        rest_path: REST API path relative to base_url (e.g., "rest/api/2/serverInfo")
+        params: Optional query parameters for the request
+        timeout: Request timeout in seconds
+
+    Returns:
+        Raw requests.Response object
+
+    Raises:
+        ConfigurationError: If configuration not loaded
+        ConnectionError: If JIRA is unreachable
+        RequestException: For other request failures
+    """
+    if _config is None:
+        raise ConfigurationError("Configuration not loaded. Call load_config() first.")
+
+    base_url = _config['jira']['base_url']
+    auth_headers = get_auth_headers()
+
+    # Construct full URL
+    url = f"{base_url}/{rest_path.lstrip('/')}"
+
+    try:
+        response = requests.get(url, headers=auth_headers, params=params, timeout=timeout)
+        return response
+
+    except ConnectionError as e:
+        logger.error(f"Connection failed for {url}: {e}")
+        raise ConnectionError(f"Failed to connect to JIRA: {e}")
+    except RequestException as e:
+        logger.error(f"Request failed for {url}: {e}")
+        raise
 
 
 # Exception classes
@@ -24,80 +78,256 @@ class AuthenticationError(Exception):
     pass
 
 
-# Core configuration functions
+def _substitute_env_vars(value: str) -> str:
+    """Substitute environment variables in string values using ${VAR_NAME} syntax."""
+    if not isinstance(value, str):
+        return value
+
+    def replace_var(match):
+        var_name = match.group(1)
+        env_value = os.environ.get(var_name)
+        if env_value is None:
+            raise ConfigurationError(f"Environment variable {var_name} not found")
+        return env_value
+
+    return re.sub(r'\$\{([^}]+)\}', replace_var, value)
+
+
+def _substitute_env_vars_recursive(data: Any) -> Any:
+    """Recursively substitute environment variables in a data structure."""
+    if isinstance(data, dict):
+        return {key: _substitute_env_vars_recursive(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [_substitute_env_vars_recursive(item) for item in data]
+    elif isinstance(data, str):
+        return _substitute_env_vars(data)
+    else:
+        return data
+
+
 def load_config(config_file_path: str) -> Dict[str, Any]:
     """Load and validate configuration from YAML file with environment variable substitution.
-    
+
     Args:
         config_file_path: Path to the YAML configuration file
-        
+
     Returns:
         Dictionary containing parsed and validated configuration
-        
+
     Raises:
         ConfigurationError: If required configuration is missing
         yaml.YAMLError: If YAML parsing fails
     """
-    raise NotImplementedError("TODO: Implement config loading with env var substitution")
+    global _config
+
+    config_path = Path(config_file_path)
+    if not config_path.exists():
+        raise ConfigurationError(f"Configuration file not found: {config_file_path}")
+
+    try:
+        with open(config_path, 'r') as f:
+            raw_config = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        raise yaml.YAMLError(f"Error parsing configuration file: {e}")
+
+    if not raw_config:
+        raise ConfigurationError("Configuration file is empty")
+
+    # Substitute environment variables
+    try:
+        config = _substitute_env_vars_recursive(raw_config)
+    except ConfigurationError:
+        raise  # Re-raise env var errors
+
+    # Validate required configuration
+    if 'jira' not in config:
+        raise ConfigurationError("Missing required configuration: jira")
+
+    jira_config = config['jira']
+    if 'base_url' not in jira_config:
+        raise ConfigurationError("Missing required configuration: jira.base_url")
+
+    if 'authentication' not in jira_config:
+        raise ConfigurationError("Missing required configuration: jira.authentication")
+
+    auth_config = jira_config['authentication']
+    if 'type' not in auth_config:
+        raise ConfigurationError("Missing required configuration: jira.authentication.type")
+
+    if auth_config['type'] != 'bearer_token':
+        raise ConfigurationError(f"Unsupported authentication type: {auth_config['type']}")
+
+    if 'token' not in auth_config:
+        raise ConfigurationError("Missing required configuration: jira.authentication.token")
+
+    # Store in module memory
+    _config = config
+    logger.info("Configuration loaded successfully")
+
+    return config
 
 
 def get_auth_headers() -> Dict[str, str]:
     """Convert authentication configuration to HTTP headers.
-    
+
     Uses the loaded configuration from module memory.
-        
+
     Returns:
         Dictionary of HTTP headers for JIRA API authentication
-        
+
     Raises:
         AuthenticationError: If authentication type is unsupported
         ConfigurationError: If config not loaded yet
     """
-    raise NotImplementedError("TODO: Implement auth header generation for bearer tokens")
+    if _config is None:
+        raise ConfigurationError("Configuration not loaded. Call load_config() first.")
+
+    auth_config = _config['jira']['authentication']
+    auth_type = auth_config['type']
+
+    if auth_type == 'bearer_token':
+        token = auth_config['token']
+        return {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+    else:
+        raise AuthenticationError(f"Unsupported authentication type: {auth_type}")
 
 
 # Cache management functions
 def initialize_cache() -> None:
     """Initialize field metadata cache by calling JIRA APIs for configured projects.
-    
+
     This is a side effect function that populates the internal cache by calling
     the JIRA editmeta API for each project's sample issue. Uses the loaded
     configuration from module memory.
-        
+
     Raises:
         ConnectionError: If JIRA is unreachable
         AuthenticationError: If authentication fails
         ConfigurationError: If config not loaded yet
-        
+
     Warnings:
         UserWarning: If sample issues are not found (doesn't prevent startup)
     """
-    raise NotImplementedError("TODO: Implement cache initialization via JIRA editmeta API")
+    if _config is None:
+        raise ConfigurationError("Configuration not loaded. Call load_config() first.")
+
+    jira_config = _config['jira']
+
+    # Clear existing cache to ensure clean state
+    _field_cache.clear()  # Clear cache for clean initialization
+
+    # Check if field_metadata_cache configuration exists
+    cache_config = jira_config.get('field_metadata_cache', {})
+    projects = cache_config.get('projects', [])
+
+    for project_config in projects:
+        project_key = project_config['project_key']
+        sample_issue = project_config['sample_issue']
+
+        try:
+            # Call editmeta API for this sample issue to discover field metadata
+            response = make_jira_request(f"rest/api/2/issue/{sample_issue}/editmeta")
+
+            if response.status_code == 404:
+                warnings.warn(f"Sample issue {sample_issue} not found", UserWarning)
+                logger.warning(f"Sample issue {sample_issue} not found, skipping cache for {project_key}")
+                continue
+            elif response.status_code != 200:
+                logger.warning(f"Failed to fetch editmeta for {sample_issue}: HTTP {response.status_code}")
+                continue
+
+            editmeta_data = response.json()
+            fields = editmeta_data.get('fields', {})
+
+            # Get the issue details to determine the issue type
+            issue_response = make_jira_request(
+                f"rest/api/2/issue/{sample_issue}",
+                params={"fields": "issuetype"}
+            )
+
+            if issue_response.status_code != 200:
+                logger.warning(f"Failed to get issue type for {sample_issue}")
+                continue
+
+            issue_data = issue_response.json()
+            issue_type = issue_data.get('fields', {}).get('issuetype', {}).get('name', 'Unknown')
+
+            # Extract parent-type fields (Epic Link and Parent Link) as field metadata
+            parent_field_metadata = []
+            for field_id, field_info in fields.items():
+                schema = field_info.get('schema', {})
+                custom_type = schema.get('custom', '')
+
+                # Identify parent-type fields by their schema custom type
+                if custom_type in [
+                    'com.pyxis.greenhopper.jira:gh-epic-link',                           # Epic Link fields
+                    'com.atlassian.jira.plugin.system.customfieldtypes:issuelinks'     # Parent Link fields
+                ]:
+                    parent_field_metadata.append({
+                        'id': field_id,
+                        'name': field_info.get('name', 'Unknown'),
+                        'schema': schema
+                    })
+                    logger.debug(f"Found parent field {field_id} ({field_info.get('name', 'Unknown')}) for {project_key}::{issue_type}")
+
+            # Cache by project::issue_type (standard pattern from old code)
+            cache_key = f"{project_key}::{issue_type}"
+            _field_cache[cache_key] = parent_field_metadata  # Store metadata objects, not just IDs
+            logger.debug(f"Cached {len(parent_field_metadata)} parent fields for {cache_key}")
+
+        except (ConnectionError, AuthenticationError):
+            # These are critical errors that should stop initialization
+            raise
+        except RequestException as e:
+            logger.warning(f"Failed to fetch field metadata for {sample_issue}: {e}")
+            continue
 
 
 def get_cached_field_metadata(project_key: str, issue_type: str) -> Optional[list]:
-    """Retrieve cached field metadata for a project and issue type combination..
-    
+    """Retrieve cached field metadata for a project and issue type combination.
+
     Args:
         project_key: JIRA project key (e.g., "PROJ", "TEST")
-        issue_type: JIRA issue type (e.g., "Story", "Bug")
+        issue_type: JIRA issue type (e.g., "Story", "Bug", "Feature Request")
+
     Returns:
         List of field metadata dictionaries, or None if not cached
     """
-    raise NotImplementedError("TODO: Implement cache retrieval")
+    cache_key = f"{project_key}::{issue_type}"
+    return _field_cache.get(cache_key)
 
 
 # Server startup validation
 def validate_jira_connection() -> None:
     """Validate JIRA connectivity and authentication during server startup.
-    
+
     This combines connectivity and auth validation because you can't test
     connectivity without valid authentication. Uses the loaded configuration
     from module memory.
-        
+
     Raises:
         ConnectionError: If JIRA base URL is unreachable
         AuthenticationError: If authentication credentials are invalid
         ConfigurationError: If config not loaded yet
     """
-    raise NotImplementedError("TODO: Implement JIRA connection validation for server startup") 
+    try:
+        # Test connectivity with a simple API call
+        response = make_jira_request("rest/api/2/serverInfo")
+
+        if response.status_code == 401:
+            raise AuthenticationError("Authentication failed")
+        elif response.status_code != 200:
+            raise ConnectionError(f"Failed to connect to JIRA: HTTP {response.status_code}")
+
+        logger.info("JIRA connection validated successfully")
+
+    except (ConnectionError, AuthenticationError):
+        # Re-raise these as-is since they're already properly formatted
+        raise
+    except RequestException as e:
+        logger.error(f"Request failed: {e}")
+        raise ConnectionError(f"Failed to connect to JIRA: {e}")

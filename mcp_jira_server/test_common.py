@@ -123,7 +123,7 @@ SAMPLE_FIELD_METADATA_RESPONSE: List[Dict[str, Any]] = [
         }
     },
     {
-        "id": "customfield_10002", 
+        "id": "customfield_10002",
         "name": "Parent Link",
         "custom": True,
         "orderable": True,
@@ -138,13 +138,60 @@ SAMPLE_FIELD_METADATA_RESPONSE: List[Dict[str, Any]] = [
     }
 ]
 
+# JIRA editmeta API response format (for testing cache initialization)
+SAMPLE_EDITMETA_RESPONSE: Dict[str, Any] = {
+    "fields": {
+        "customfield_10001": {
+            "name": "Epic Link",
+            "custom": True,
+            "orderable": True,
+            "navigable": True,
+            "searchable": True,
+            "clauseNames": ["cf[10001]", "Epic Link"],
+            "schema": {
+                "type": "any",
+                "custom": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "customId": 10001
+            }
+        },
+        "customfield_10002": {
+            "name": "Parent Link",
+            "custom": True,
+            "orderable": True,
+            "navigable": True,
+            "searchable": True,
+            "clauseNames": ["cf[10002]", "Parent Link"],
+            "schema": {
+                "type": "issuelink",
+                "custom": "com.atlassian.jira.plugin.system.customfieldtypes:issuelinks",
+                "customId": 10002
+            }
+        }
+    }
+}
+
+# JIRA issue response format (for getting issue type)
+SAMPLE_ISSUE_TYPE_RESPONSE: Dict[str, Any] = {
+    "fields": {
+        "issuetype": {
+            "self": "https://jira.example.com/rest/api/2/issuetype/2",
+            "id": "2",
+            "description": "Feature requests from customers and/or users",
+            "iconUrl": "https://jira.example.com/secure/viewavatar?size=xsmall&avatarId=13271&avatarType=issuetype",
+            "name": "Feature Request",
+            "subtask": False,
+            "avatarId": 13271
+        }
+    }
+}
+
 # Sample configuration data for tests
 SAMPLE_VALID_CONFIG: Dict[str, Any] = {
     "jira": {
         "base_url": "https://jira.example.com",
         "authentication": {
             "type": "bearer_token",
-            "token": "${JIRA_TOKEN}"
+            "token": "fixed-test-token-12345"
         },
         "field_metadata_cache": {
             "projects": [
@@ -206,18 +253,19 @@ SAMPLE_JIRA_STORY_RESPONSE: Dict[str, Any] = {
     }
 }
 
+
 def create_mock_jira_response(status_code: int = 200, data: Any = None, error_messages: List[str] = None):
     """Create a mock HTTP response for JIRA API calls"""
     from unittest.mock import Mock
-    
+
     mock_response = Mock()
     mock_response.status_code = status_code
-    
+
     if status_code == 200:
         mock_response.json.return_value = data or SAMPLE_JIRA_ISSUE_RESPONSE
     else:
         mock_response.json.return_value = {
             "errorMessages": error_messages or ["An error occurred"]
         }
-    
+
     return mock_response
