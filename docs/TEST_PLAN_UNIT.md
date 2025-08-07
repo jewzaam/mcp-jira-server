@@ -6,18 +6,16 @@ This document maps 1:1 to unit tests in the codebase based on the requirements i
 
 | Test ID | Description | Validated |
 |---------|-------------|-----------|
-| CONFIG-01 | Load configuration file with valid YAML structure | |
-| CONFIG-02 | Environment variable substitution with ${VAR_NAME} syntax | |
-| CONFIG-03 | Support bearer_token authentication type | |
-| CONFIG-04 | Support basic_auth authentication type | |
-| CONFIG-05 | Support username_password authentication type | |
-| CONFIG-06 | Pre-cache field metadata for configured projects at startup | |
-| CONFIG-07 | Handle invalid sample issues with startup warnings (don't prevent start) | |
-| CONFIG-08 | Fail startup with specific error for missing required configuration | |
-| CONFIG-09 | Fail startup with connectivity error for invalid JIRA base URL | |
-| CONFIG-10 | Fail startup with auth error for authentication failure | |
-| CONFIG-11 | Fail startup with parsing error for malformed YAML | |
-| CONFIG-12 | Never log or expose authentication credentials | |
+| CONFIG-01 | Load configuration file with valid YAML structure | ✅ |
+| CONFIG-02 | Environment variable substitution with ${VAR_NAME} syntax | ✅ |
+| CONFIG-03 | Support bearer_token authentication type | ✅ |
+| CONFIG-04 | Pre-cache field metadata for configured projects at startup | ✅ |
+| CONFIG-05 | Handle invalid sample issues with startup warnings (don't prevent start) | ✅ |
+| CONFIG-06 | Fail startup with specific error for missing required configuration | ✅ |
+| CONFIG-07 | Fail startup with connectivity error for invalid JIRA base URL | ✅ |
+| CONFIG-08 | Fail startup with auth error for authentication failure | ✅ |
+| CONFIG-09 | Fail startup with parsing error for malformed YAML | ✅ |
+| CONFIG-10 | Never log or expose authentication credentials | ✅ |
 
 ## SEARCH_ISSUES - Issue Search and Discovery
 

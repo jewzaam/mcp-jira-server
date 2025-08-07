@@ -39,7 +39,7 @@ MCP Server description considerations:
 - Read-only access to JIRA issues, projects, and metadata
 - Issue relationship discovery (parent-child, links)
 - JQL and text-based search capabilities
-- Authentication via username/password, tokens, or bearer tokens
+- Authentication via bearer tokens
 
 **Out of Scope:**
 - Creating, updating, or deleting JIRA issues
@@ -58,11 +58,8 @@ MCP Server description considerations:
 jira:
   base_url: "https://issues.redhat.com"
   authentication:
-    type: "bearer_token"  # or "basic_auth" or "username_password"
+    type: "bearer_token"
     token: "${JIRA_TOKEN}"  # environment variable reference
-    # OR for basic auth:
-    # username: "${JIRA_USERNAME}"
-    # password: "${JIRA_PASSWORD}"
   
   # Pre-cache field metadata for these project/issue type combinations
   field_metadata_cache:
@@ -81,14 +78,14 @@ jira:
 
 **Configuration Behaviors:**
 - **Environment Variables:** Support `${VAR_NAME}` syntax for sensitive values
-- **Authentication Types:** Support bearer token, basic auth, and username/password
+- **Authentication Types:** Support bearer token authentication
 - **Field Discovery:** Use `editmeta` API on sample issues to discover custom parent fields at startup
 - **Cache Initialization:** Pre-load field metadata for specified projects to avoid runtime discovery
 - **Security:** Never log or expose authentication credentials
 
 **Success Criteria:**
 - Configuration file validates on startup with clear error messages for missing/invalid values
-- Authentication works with all three supported methods
+- Bearer token authentication works correctly
 - Field metadata successfully cached for all configured projects
 - Environment variable substitution works for sensitive values
 - Invalid sample issues cause startup warnings but don't prevent server start
@@ -493,9 +490,7 @@ GET /search?jql=issuekey in parentIssuesOf("TASK-789")&fields=key,summary,status
 ### NF3: Security
 
 **Authentication:**
-- Support username/password basic authentication
-- Support API token authentication
-- Support personal access token (Bearer) authentication
+- Support bearer token authentication
 - Never log authentication credentials
 
 **Authorization:**
