@@ -480,52 +480,81 @@ class JiraTools:
     async def get_descendants(self, issue_key: str, max_depth: int = 3, 
                              include_subtasks: bool = True, include_links: bool = True,
                              include_parent_links: bool = False) -> DescendantTree:
-        """Get all descendants of an issue using the existing JiraClient traversal logic."""
-        descendants_data = self._client.get_descendants(
-            issue_key=issue_key,
-            depth=max_depth,
-            include_subtasks=include_subtasks,
-            include_links=include_links,
-            include_remote_links=False,  # We don't need remote links for descendants
-            include_parent_links=include_parent_links
-        )
+        """Get all descendants of an issue using optimized traversal to minimize API calls.
         
-        # Extract metadata
-        metadata = descendants_data.pop("_extraction_metadata", {})
-        traversal_order = metadata.get("traversal_order", [])
+        Returns minimal data (key, summary, status) to reduce API load.
+        """
+        all_descendants = {}  # key -> IssueSummary
+        traversal_order = []
+        visited = set()
+        to_process = [(issue_key, 0)]  # (issue_key, depth)
         
-        # Convert issue data to IssueSummary objects
-        issues = []
-        for key, issue_data in descendants_data.items():
-            if key == issue_key:  # Skip the root issue itself
+        while to_process:
+            current_key, current_depth = to_process.pop(0)
+            
+            # Skip if already processed or depth exceeded
+            if current_key in visited or (max_depth != -1 and current_depth >= max_depth):
                 continue
                 
-            fields = issue_data.get("fields", {})
-            issues.append(IssueSummary(
-                key=key,
-                summary=fields.get("summary", ""),
-                status=fields.get("status", {}).get("name", ""),
-                url=f"{self._client.base_url}/browse/{key}"
-            ))
+            visited.add(current_key)
+            traversal_order.append({
+                "issue_key": current_key,
+                "depth": current_depth
+            })
+            
+            try:
+                # Get direct children using optimized get_children method
+                children = []
+                
+                # Get subtasks and parent-link children based on configuration
+                if include_subtasks or include_parent_links:
+                    children.extend(await self.get_children(current_key, include_parent_links))
+                
+                # Add issue links if requested (only for root level to avoid excessive branching)
+                if include_links and current_depth == 0:
+                    linked_issues = await self.get_linked_issues(current_key)
+                    for link in linked_issues:
+                        # Only include outward links to avoid cycles
+                        if hasattr(link, 'outward_issue') and link.outward_issue:
+                            children.append(IssueSummary(
+                                key=link.outward_issue.key,
+                                summary=link.outward_issue.summary,
+                                status=link.outward_issue.status,
+                                url=link.outward_issue.url
+                            ))
+                
+                # Add children to descendants and queue for processing
+                for child in children:
+                    if child.key not in all_descendants and child.key != issue_key:
+                        all_descendants[child.key] = child
+                        if max_depth == -1 or current_depth + 1 < max_depth:
+                            to_process.append((child.key, current_depth + 1))
+                            
+            except Exception as e:
+                self._logger.warning(f"Could not process descendants for {current_key}: {e}")
+                continue
         
         return DescendantTree(
             root_issue=issue_key,
             max_depth=max_depth,
-            total_issues=len(issues),
-            issues=issues,
+            total_issues=len(all_descendants),
+            issues=list(all_descendants.values()),
             traversal_order=traversal_order
         )
 
     async def get_children(self, issue_key: str, include_parent_links: bool = False,
                           parent_link_field: str = "Parent Link") -> List[IssueSummary]:
-        """Get direct children of an issue (subtasks and optionally parent-link children)."""
+        """Get direct children of an issue (subtasks and optionally parent-link children).
+        
+        Returns minimal data (key, summary, status) to reduce API load.
+        """
         children = []
         
-        # Get the issue to extract subtasks
+        # Get the issue to extract subtasks (single API call)
         issue_data = self._client.get_issue(issue_key)
         fields = issue_data.get("fields", {})
         
-        # Add subtasks
+        # Add subtasks (already included in the parent issue data)
         subtasks = fields.get("subtasks", [])
         for subtask in subtasks:
             subtask_key = subtask.get("key")
@@ -538,23 +567,48 @@ class JiraTools:
                     url=f"{self._client.base_url}/browse/{subtask_key}"
                 ))
         
-        # Add parent-link children if requested
+        # Add parent-link children if requested (optimize with JQL search)
         if include_parent_links:
-            parent_link_children = self._client.get_parent_link_children(issue_key, parent_link_field)
-            for child_key in parent_link_children:
-                # Fetch details for each child
-                try:
-                    child_data = self._client.get_issue(child_key)
-                    child_fields = child_data.get("fields", {})
-                    children.append(IssueSummary(
-                        key=child_key,
-                        summary=child_fields.get("summary", ""),
-                        status=child_fields.get("status", {}).get("name", ""),
-                        url=f"{self._client.base_url}/browse/{child_key}"
-                    ))
-                except Exception as e:
-                    self._logger.warning(f"Could not fetch details for parent-link child {child_key}: {e}")
-                    continue
+            # Use JQL search instead of individual API calls
+            try:
+                # Search for issues that have this issue as their parent link
+                jql = f'"{parent_link_field}" = "{issue_key}"'
+                url = urljoin(self._client.api_base, "search")
+                params = {
+                    "jql": jql,
+                    "fields": "summary,status",  # Only fetch minimal fields
+                    "maxResults": 100  # Reasonable limit for direct children
+                }
+                search_result = self._client._make_api_request(url, params=params, resource_name="parent-link search")
+                
+                for issue in search_result.get("issues", []):
+                    issue_key_found = issue.get("key")
+                    if issue_key_found:
+                        issue_fields = issue.get("fields", {})
+                        children.append(IssueSummary(
+                            key=issue_key_found,
+                            summary=issue_fields.get("summary", ""),
+                            status=issue_fields.get("status", {}).get("name", ""),
+                            url=f"{self._client.base_url}/browse/{issue_key_found}"
+                        ))
+                        
+            except Exception as e:
+                self._logger.warning(f"Could not search for parent-link children: {e}")
+                # Fallback to individual API calls if search fails
+                parent_link_children = self._client.get_parent_link_children(issue_key, parent_link_field)
+                for child_key in parent_link_children:
+                    try:
+                        child_data = self._client.get_issue(child_key, expand=None)
+                        child_fields = child_data.get("fields", {})
+                        children.append(IssueSummary(
+                            key=child_key,
+                            summary=child_fields.get("summary", ""),
+                            status=child_fields.get("status", {}).get("name", ""),
+                            url=f"{self._client.base_url}/browse/{child_key}"
+                        ))
+                    except Exception as e2:
+                        self._logger.warning(f"Could not fetch details for parent-link child {child_key}: {e2}")
+                        continue
         
         return children
 
@@ -855,7 +909,8 @@ def create_server(
             "Follows subtask relationships and issue links (blocks/depends) to build a complete "
             "descendant tree. Use for impact analysis: 'What work depends on this issue?' "
             "Default depth=3 levels for performance. Use max_depth=-1 for unlimited traversal "
-            "(caution: can be slow on large hierarchies). Complements get_ancestors()."
+            "(caution: can be slow on large hierarchies). Returns minimal data (key, summary, "
+            "status) to optimize performance. Complements get_ancestors()."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
@@ -881,7 +936,8 @@ def create_server(
             "Get immediate children only (1 level down) - subtasks and optionally custom "
             "parent-link field children. Use this instead of get_descendants() when you only "
             "need direct children, not the full hierarchy. Faster and more focused than "
-            "get_descendants() with max_depth=1. Commonly used for Epic→Story or Story→Task relationships."
+            "get_descendants() with max_depth=1. Returns minimal data (key, summary, status) "
+            "to optimize performance. Commonly used for Epic→Story or Story→Task relationships."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
