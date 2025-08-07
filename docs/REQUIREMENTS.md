@@ -222,7 +222,7 @@ interface PagedResult<T> {
 - If no sample_issue provided, use pre-cached metadata from configuration OR fail if no cached data exists
 - Return field metadata including which fields are used for `parent_key` derivation
 - Mark fields with names matching `.*Link` pattern as `used_for_parent_key: true`
-- Cache discovered metadata for future use
+- Cache discovered metadata for future use using simple in-memory 
 
 **Success Criteria:**
 - `get_field_metadata("RFE")` returns cached metadata for RFE project
