@@ -526,6 +526,91 @@ class TestConfigDomain:
             # Should not raise exception, just log warnings
             initialize_cache()
 
+    def test_config_15_environment_variable_substitution_with_non_string_values_and_missing_variables(self):
+        """CONFIG-15: Test environment variable substitution with non-string values and missing variables"""
+        from mcp_jira_server.config import _substitute_env_vars, ConfigurationError
+        
+        # Test with non-string input (should return as-is)
+        non_string_values = [123, None, ['list'], {'dict': 'value'}]
+        for value in non_string_values:
+            result = _substitute_env_vars(value)
+            assert result == value, f"Non-string value {value} should be returned unchanged"
+        
+        # Test with missing environment variable
+        with pytest.raises(ConfigurationError, match="Environment variable NONEXISTENT_VAR not found"):
+            _substitute_env_vars("${NONEXISTENT_VAR}")
+
+    def test_config_16_configuration_file_loading_with_missing_files_and_empty_content(self):
+        """CONFIG-16: Test configuration file loading with missing files and empty content"""
+        from mcp_jira_server.config import load_config, ConfigurationError
+        
+        # Test with non-existent file
+        nonexistent_file = Path(self.temp_dir) / "nonexistent.yaml"
+        with pytest.raises(ConfigurationError, match="Configuration file not found"):
+            load_config(str(nonexistent_file))
+        
+        # Test with empty file
+        empty_config_file = Path(self.temp_dir) / "empty.yaml"
+        empty_config_file.write_text("")
+        with pytest.raises(ConfigurationError, match="Configuration file is empty"):
+            load_config(str(empty_config_file))
+
+    def test_config_17_authentication_header_generation_error_scenarios(self):
+        """CONFIG-17: Test authentication header generation error scenarios"""
+        from mcp_jira_server.config import get_auth_headers, ConfigurationError, AuthenticationError
+        
+        # Test without loaded config
+        # First clear any existing config
+        import mcp_jira_server.config as config_module
+        config_module._config = None
+        
+        with pytest.raises(ConfigurationError, match="Configuration not loaded"):
+            get_auth_headers()
+        
+        # Test with invalid auth type by modifying config after loading
+        with open(self.config_file, 'w') as f:
+            yaml.dump(self.valid_config, f)
+        
+        from mcp_jira_server.config import load_config
+        load_config(str(self.config_file))
+        
+        # Directly modify the loaded config to test unsupported auth type
+        config_module._config['jira']['authentication']['type'] = 'unsupported_auth'
+        
+        with pytest.raises(AuthenticationError, match="Unsupported authentication type"):
+            get_auth_headers()
+
+    def test_config_18_field_metadata_caching_with_unloaded_config_and_api_errors(self):
+        """CONFIG-18: Test field metadata caching with unloaded config and API errors"""
+        from mcp_jira_server.config import initialize_cache, ConfigurationError
+        from unittest.mock import patch
+        
+        # Test without loaded config
+        # First clear any existing config
+        import mcp_jira_server.config as config_module
+        config_module._config = None
+        
+        with pytest.raises(ConfigurationError, match="Configuration not loaded"):
+            initialize_cache()
+        
+        # Test with API errors (HTTP 404 and other errors)
+        with open(self.config_file, 'w') as f:
+            yaml.dump(self.valid_config, f)
+        
+        from mcp_jira_server.config import load_config
+        load_config(str(self.config_file))
+        
+        with patch('mcp_jira_server.config.make_jira_request') as mock_jira_request:
+            # Mock 404 response for editmeta (should warn and continue)
+            mock_404_response = create_mock_jira_response(404)
+            # Mock 500 error for editmeta (should warn and continue)
+            mock_500_response = create_mock_jira_response(500)
+            
+            mock_jira_request.side_effect = [mock_404_response, mock_500_response]
+            
+            # Should not raise exception, just log warnings
+            initialize_cache()
+
     def teardown_method(self):
         """Clean up test fixtures after each test method"""
         import shutil

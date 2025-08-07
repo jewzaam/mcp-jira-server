@@ -20,6 +20,10 @@ This document maps 1:1 to unit tests in the codebase based on the requirements i
 | CONFIG-12 | Test cache miss scenarios in get_cached_field_metadata | ✅ |
 | CONFIG-13 | Test environment variable substitution edge cases | ✅ |
 | CONFIG-14 | Test request exception handling in initialize_cache | ✅ |
+| CONFIG-15 | Test environment variable substitution with non-string values and missing variables | ✅ |
+| CONFIG-16 | Test configuration file loading with missing files and empty content | ✅ |
+| CONFIG-17 | Test authentication header generation error scenarios | ✅ |
+| CONFIG-18 | Test field metadata caching with unloaded config and API errors | ✅ |
 
 ## MODELS - Data Model Validation
 
