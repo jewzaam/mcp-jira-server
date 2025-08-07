@@ -17,6 +17,9 @@ This document maps 1:1 to unit tests in the codebase based on the requirements i
 | CONFIG-09 | Fail startup with parsing error for malformed YAML | ✅ |
 | CONFIG-10 | Never log or expose authentication credentials | ✅ |
 | CONFIG-11 | Test make_jira_request error handling when config not loaded | ✅ |
+| CONFIG-11b | Test make_jira_request success path | ✅ |
+| CONFIG-11c | Test make_jira_request connection error | ✅ |
+| CONFIG-11d | Test make_jira_request general exception | ✅ |
 | CONFIG-12 | Test cache miss scenarios in get_cached_field_metadata | ✅ |
 | CONFIG-13 | Test environment variable substitution edge cases | ✅ |
 | CONFIG-14 | Test request exception handling in initialize_cache | ✅ |
@@ -30,7 +33,7 @@ This document maps 1:1 to unit tests in the codebase based on the requirements i
 | Test ID | Description | Validated |
 |---------|-------------|-----------|
 | MODELS-01 | IssueDetails dataclass instantiation with required fields | ✅ |
-| MODELS-02 | IssueDetails dataclass with all optional fields and defaults | ✅ |
+| MODELS-02 | IssueDetails dataclass with optional fields and defaults | ✅ |
 | MODELS-03 | FieldMetadata dataclass instantiation with required fields | ✅ |
 | MODELS-04 | FieldMetadata dataclass with optional fields and defaults | ✅ |
 | MODELS-05 | PagedResult dataclass instantiation with required fields | ✅ |
@@ -180,18 +183,6 @@ This document maps 1:1 to unit tests in the codebase based on the requirements i
 | CACHE-02 | Cache field discovery results for project:issue_type combinations | |
 | CACHE-05 | Fall back to runtime discovery for uncached combinations | |
 | CACHE-08 | Graceful fallback when cache miss occurs | |
-
-## DATA_MODELS - Response Structure Validation
-
-| Test ID | Description | Validated |
-|---------|-------------|-----------|
-| MODELS-01 | IssueDetails model contains all required fields | |
-| MODELS-02 | IssueDetails model handles optional fields correctly | |
-| MODELS-03 | IssueDetails model includes raw field with complete JIRA response | |
-| MODELS-04 | FieldMetadata model contains all required fields | |
-| MODELS-05 | FieldMetadata model marks link fields for parent_key derivation | |
-| MODELS-06 | PagedResult model includes correct pagination metadata | |
-| MODELS-07 | PagedResult model handles empty results correctly | |
 
 ## Usage Notes
 
