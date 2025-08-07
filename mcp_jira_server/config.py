@@ -18,7 +18,7 @@ from pathlib import Path
 
 import yaml
 import requests
-from requests.exceptions import ConnectionError, RequestException
+from requests.exceptions import ConnectionError as RequestsConnectionError, RequestException
 
 # Module-level configuration storage (singleton pattern)
 _config: Optional[Dict[str, Any]] = None
@@ -59,7 +59,7 @@ def make_jira_request(rest_path: str, params: Optional[Dict[str, Any]] = None, t
         response = requests.get(url, headers=auth_headers, params=params, timeout=timeout)
         return response
 
-    except ConnectionError as e:
+    except RequestsConnectionError as e:
         logger.error(f"Connection failed for {url}: {e}")
         raise ConnectionError(f"Failed to connect to JIRA: {e}")
     except RequestException as e:

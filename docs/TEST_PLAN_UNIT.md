@@ -16,6 +16,21 @@ This document maps 1:1 to unit tests in the codebase based on the requirements i
 | CONFIG-08 | Fail startup with auth error for authentication failure | ✅ |
 | CONFIG-09 | Fail startup with parsing error for malformed YAML | ✅ |
 | CONFIG-10 | Never log or expose authentication credentials | ✅ |
+| CONFIG-11 | Test make_jira_request error handling when config not loaded | ✅ |
+| CONFIG-12 | Test cache miss scenarios in get_cached_field_metadata | ✅ |
+| CONFIG-13 | Test environment variable substitution edge cases | ✅ |
+| CONFIG-14 | Test request exception handling in initialize_cache | ✅ |
+
+## MODELS - Data Model Validation
+
+| Test ID | Description | Validated |
+|---------|-------------|-----------|
+| MODELS-01 | IssueDetails dataclass instantiation with required fields | ✅ |
+| MODELS-02 | IssueDetails dataclass with all optional fields and defaults | ✅ |
+| MODELS-03 | FieldMetadata dataclass instantiation with required fields | ✅ |
+| MODELS-04 | FieldMetadata dataclass with optional fields and defaults | ✅ |
+| MODELS-05 | PagedResult dataclass instantiation with required fields | ✅ |
+| MODELS-06 | PagedResult dataclass with optional fields and defaults | ✅ |
 
 ## SEARCH_ISSUES - Issue Search and Discovery
 

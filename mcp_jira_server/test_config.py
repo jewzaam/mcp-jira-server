@@ -7,6 +7,7 @@ Test cases CONFIG-01 through CONFIG-12 from TEST_PLAN_UNIT.md.
 Tests configuration loading, validation, authentication types, and error handling.
 """
 
+import copy
 import pytest
 import os
 import tempfile
@@ -30,8 +31,13 @@ class TestConfigDomain:
         self.temp_dir = tempfile.mkdtemp()
         self.config_file = Path(self.temp_dir) / "test_config.yaml"
 
-        # Use sample valid configuration from test_common
-        self.valid_config = SAMPLE_VALID_CONFIG
+        # Use sample valid configuration from test_common (deep copy to avoid cross-test contamination)
+        self.valid_config = copy.deepcopy(SAMPLE_VALID_CONFIG)
+
+        # Clear module state to ensure test isolation
+        import mcp_jira_server.config as config_module
+        config_module._config = None
+        config_module._field_cache.clear()
 
     def test_config_01_load_configuration_file_with_valid_yaml_structure(self):
         """CONFIG-01: Load configuration file with valid YAML structure"""
@@ -204,23 +210,81 @@ class TestConfigDomain:
 
     def test_config_06_fail_startup_with_specific_error_for_missing_required_configuration(self):
         """CONFIG-06: Fail startup with specific error for missing required configuration"""
-        # Arrange - Create config missing required base_url (no env vars to avoid substitution issues)
-        invalid_config = {
+        from mcp_jira_server.config import load_config, ConfigurationError
+
+        # Test case 1: Missing jira section entirely
+        config_no_jira = {"other": "data"}
+        with open(self.config_file, 'w') as f:
+            yaml.dump(config_no_jira, f)
+        with pytest.raises(ConfigurationError, match="Missing required configuration: jira"):
+            load_config(str(self.config_file))
+
+        # Test case 2: Missing base_url
+        config_no_base_url = {
             "jira": {
                 "authentication": {
                     "type": "bearer_token",
-                    "token": "fixed-token"  # No env vars
+                    "token": "fixed-token"
                 }
-                # Missing required base_url
             }
         }
-
         with open(self.config_file, 'w') as f:
-            yaml.dump(invalid_config, f)
-
-        # Act & Assert - This is the TDD part - expecting specific exception
-        from mcp_jira_server.config import load_config, ConfigurationError
+            yaml.dump(config_no_base_url, f)
         with pytest.raises(ConfigurationError, match="Missing required configuration: jira.base_url"):
+            load_config(str(self.config_file))
+
+        # Test case 3: Missing authentication section
+        config_no_auth = {
+            "jira": {
+                "base_url": "https://jira.example.com"
+            }
+        }
+        with open(self.config_file, 'w') as f:
+            yaml.dump(config_no_auth, f)
+        with pytest.raises(ConfigurationError, match="Missing required configuration: jira.authentication"):
+            load_config(str(self.config_file))
+
+        # Test case 4: Missing authentication type
+        config_no_auth_type = {
+            "jira": {
+                "base_url": "https://jira.example.com",
+                "authentication": {
+                    "token": "fixed-token"
+                }
+            }
+        }
+        with open(self.config_file, 'w') as f:
+            yaml.dump(config_no_auth_type, f)
+        with pytest.raises(ConfigurationError, match="Missing required configuration: jira.authentication.type"):
+            load_config(str(self.config_file))
+
+        # Test case 5: Unsupported authentication type
+        config_bad_auth_type = {
+            "jira": {
+                "base_url": "https://jira.example.com",
+                "authentication": {
+                    "type": "unsupported_auth",
+                    "token": "fixed-token"
+                }
+            }
+        }
+        with open(self.config_file, 'w') as f:
+            yaml.dump(config_bad_auth_type, f)
+        with pytest.raises(ConfigurationError, match="Unsupported authentication type: unsupported_auth"):
+            load_config(str(self.config_file))
+
+        # Test case 6: Missing token
+        config_no_token = {
+            "jira": {
+                "base_url": "https://jira.example.com",
+                "authentication": {
+                    "type": "bearer_token"
+                }
+            }
+        }
+        with open(self.config_file, 'w') as f:
+            yaml.dump(config_no_token, f)
+        with pytest.raises(ConfigurationError, match="Missing required configuration: jira.authentication.token"):
             load_config(str(self.config_file))
 
     def test_config_07_fail_startup_with_connectivity_error_for_invalid_jira_base_url(self):
@@ -233,13 +297,13 @@ class TestConfigDomain:
             yaml.dump(invalid_url_config, f)
 
         # Act & Assert - This is the TDD part - testing connectivity validation during startup
-        with patch('mcp_jira_server.config.make_jira_request') as mock_jira_request:
-            from requests.exceptions import ConnectionError
-            mock_jira_request.side_effect = ConnectionError("Connection failed")
+        with patch('mcp_jira_server.config.requests.get') as mock_get:
+            from requests.exceptions import ConnectionError as RequestsConnectionError
+            mock_get.side_effect = RequestsConnectionError("Connection refused")
 
             from mcp_jira_server.config import load_config, validate_jira_connection
             load_config(str(self.config_file))  # Load into module memory
-            with pytest.raises(ConnectionError, match="Connection failed"):
+            with pytest.raises(ConnectionError, match="Failed to connect to JIRA"):
                 validate_jira_connection()  # Uses loaded config from memory
 
     def test_config_08_fail_startup_with_auth_error_for_authentication_failure(self):
@@ -310,6 +374,157 @@ class TestConfigDomain:
                     assert sensitive_token not in str(call)
                 for call in mock_logging.error.call_args_list:
                     assert sensitive_token not in str(call)
+
+    def test_config_11_test_make_jira_request_error_handling(self):
+        """CONFIG-11: Test make_jira_request error handling when config not loaded"""
+        from mcp_jira_server.config import make_jira_request, ConfigurationError
+
+        # Reset module state to simulate config not loaded
+        import mcp_jira_server.config as config_module
+        config_module._config = None
+
+        # Should raise ConfigurationError when config not loaded
+        with pytest.raises(ConfigurationError, match="Configuration not loaded"):
+            make_jira_request("rest/api/2/serverInfo")
+
+    def test_config_11b_test_make_jira_request_success_path(self):
+        """CONFIG-11b: Test make_jira_request successful execution with valid config"""
+        # Setup valid config
+        with open(self.config_file, 'w') as f:
+            yaml.dump(self.valid_config, f)
+
+        from mcp_jira_server.config import load_config, make_jira_request
+        from unittest.mock import Mock
+
+        # Load config first
+        load_config(self.config_file)
+
+        # Mock requests.get at the module level
+        with patch('mcp_jira_server.config.requests.get') as mock_get:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"version": "8.5.0"}
+            mock_get.return_value = mock_response
+
+            # Call make_jira_request - this should execute the real function
+            result = make_jira_request("rest/api/2/serverInfo")
+
+            # Verify the function constructed the URL and headers correctly
+            expected_url = "https://jira.example.com/rest/api/2/serverInfo"
+            expected_headers = {
+                "Authorization": "Bearer fixed-test-token-12345",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+            
+            mock_get.assert_called_once_with(
+                expected_url,
+                headers=expected_headers,
+                params=None,
+                timeout=30
+            )
+            
+            # Verify we got the response back
+            assert result == mock_response
+
+    def test_config_11c_test_make_jira_request_connection_error(self):
+        """CONFIG-11c: Test make_jira_request handling ConnectionError"""
+        # Setup valid config
+        with open(self.config_file, 'w') as f:
+            yaml.dump(self.valid_config, f)
+
+        from mcp_jira_server.config import load_config, make_jira_request
+        from requests.exceptions import ConnectionError as RequestsConnectionError
+
+        # Load config first
+        load_config(self.config_file)
+
+        # Mock requests.get to raise ConnectionError
+        with patch('mcp_jira_server.config.requests.get') as mock_get:
+            mock_get.side_effect = RequestsConnectionError("Connection refused")
+
+            # Should raise ConnectionError with our custom message
+            with pytest.raises(ConnectionError, match="Failed to connect to JIRA"):
+                make_jira_request("rest/api/2/serverInfo")
+
+    def test_config_11d_test_make_jira_request_general_exception(self):
+        """CONFIG-11d: Test make_jira_request handling general RequestException"""
+        # Setup valid config
+        with open(self.config_file, 'w') as f:
+            yaml.dump(self.valid_config, f)
+
+        from mcp_jira_server.config import load_config, make_jira_request
+        from requests.exceptions import RequestException
+
+        # Load config first
+        load_config(self.config_file)
+
+        # Mock requests.get to raise RequestException
+        with patch('mcp_jira_server.config.requests.get') as mock_get:
+            mock_get.side_effect = RequestException("Timeout occurred")
+
+            # Should re-raise the original RequestException
+            with pytest.raises(RequestException, match="Timeout occurred"):
+                make_jira_request("rest/api/2/serverInfo")
+
+    def test_config_12_test_cache_miss_scenarios(self):
+        """CONFIG-12: Test cache miss scenarios in get_cached_field_metadata"""
+        # Load valid config first
+        with open(self.config_file, 'w') as f:
+            yaml.dump(self.valid_config, f)
+
+        from mcp_jira_server.config import load_config, get_cached_field_metadata
+        load_config(str(self.config_file))
+
+        # Test cache miss for unknown project/issue type combination
+        result = get_cached_field_metadata("UNKNOWN", "Story")
+        assert result is None
+
+        result = get_cached_field_metadata("PROJ", "UnknownType")
+        assert result is None
+
+    def test_config_13_test_environment_variable_substitution_edge_cases(self):
+        """CONFIG-13: Test environment variable substitution edge cases"""
+        # Test recursive substitution (when value is not a string)
+        from mcp_jira_server.config import _substitute_env_vars_recursive
+
+        # Test with non-string value (should return as-is)
+        result = _substitute_env_vars_recursive(123)
+        assert result == 123
+
+        result = _substitute_env_vars_recursive(None)
+        assert result is None
+
+        result = _substitute_env_vars_recursive(True)
+        assert result is True
+
+        # Test with list and dict structures
+        test_list = ["${JIRA_TOKEN}", "static_value"]
+        test_dict = {"token": "${JIRA_TOKEN}", "url": "static"}
+
+        with patch.dict(os.environ, {"JIRA_TOKEN": "test-token"}):
+            result_list = _substitute_env_vars_recursive(test_list)
+            assert result_list == ["test-token", "static_value"]
+
+            result_dict = _substitute_env_vars_recursive(test_dict)
+            assert result_dict == {"token": "test-token", "url": "static"}
+
+    def test_config_14_test_request_exception_handling_in_initialize_cache(self):
+        """CONFIG-14: Test request exception handling in initialize_cache"""
+        # Setup valid config
+        with open(self.config_file, 'w') as f:
+            yaml.dump(self.valid_config, f)
+
+        from requests.exceptions import RequestException
+        with patch('mcp_jira_server.config.make_jira_request') as mock_jira_request:
+            # Mock RequestException (non-critical error that should be logged and continue)
+            mock_jira_request.side_effect = RequestException("Network error")
+
+            from mcp_jira_server.config import load_config, initialize_cache
+            load_config(str(self.config_file))
+
+            # Should not raise exception, just log warnings
+            initialize_cache()
 
     def teardown_method(self):
         """Clean up test fixtures after each test method"""
