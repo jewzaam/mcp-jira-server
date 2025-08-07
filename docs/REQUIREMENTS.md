@@ -165,7 +165,7 @@ interface PagedResult<T> {
 
 ### F1: Issue Search and Discovery
 
-#### search_issues(query: string, max_results: number = 25, start_page: number = 0) -> PagedResult<IssueDetails>
+#### search_issues(query: string, max_results: number = 25, start_page: number = 0, fields: string = null) -> PagedResult<IssueDetails>
 
 **Purpose:** Find JIRA issues using JQL queries or simple text search.
 
@@ -175,10 +175,12 @@ interface PagedResult<T> {
 - Return paged result with up to `max_results` issues starting at page `start_page`
 - Include pagination metadata (total count, has_more, etc.)
 - Sort by JIRA's default relevance scoring
+- **Field Selection**: Follow Common Behaviors pattern for `fields` parameter
 
 **Success Criteria:**
 - `search_issues("project = PROJ", 25, 0)` returns page 0 (first 25 issues)
 - `search_issues("project = PROJ", 25, 1)` returns page 1 (next 25 issues)
+- `search_issues("project = PROJ", 25, 0, "key,summary,status")` returns only specified fields
 - `has_more: true` when more pages available beyond current page
 - `current_page` matches the requested `start_page`
 - `total_count` accurately reflects total matching issues

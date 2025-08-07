@@ -43,20 +43,21 @@ This document maps 1:1 to unit tests in the codebase based on the requirements i
 
 | Test ID | Description | Validated |
 |---------|-------------|-----------|
-| SEARCH-01 | Simple text query searches issue summaries | |
-| SEARCH-02 | JQL detection with equals sign (=) | |
-| SEARCH-03 | JQL detection with AND operator | |
-| SEARCH-04 | JQL detection with OR operator | |
-| SEARCH-05 | JQL detection with "order by" clause | |
-| SEARCH-06 | Return page 0 with first 25 issues (default parameters) | |
-| SEARCH-07 | Return page 1 with next 5 issues | |
-| SEARCH-08 | has_more: true when more pages available | |
-| SEARCH-09 | current_page matches requested start_page | |
-| SEARCH-10 | total_count accurately reflects total matching issues | |
-| SEARCH-11 | Empty result with total_count: 0 and has_more: false | |
-| SEARCH-12 | Fail with specific syntax error for invalid JQL | |
-| SEARCH-13 | Fail with authentication error | |
-| SEARCH-14 | Fail with timeout error for network timeout | |
+| SEARCH-01 | Simple text query searches issue summaries | ✅ |
+| SEARCH-02 | JQL detection with equals sign (=) | ✅ |
+| SEARCH-03 | JQL detection with AND operator | ✅ |
+| SEARCH-04 | JQL detection with OR operator | ✅ |
+| SEARCH-05 | JQL detection with "order by" clause | ✅ |
+| SEARCH-06 | Return page 0 with first 25 issues (default parameters) | ✅ |
+| SEARCH-07 | Return page 1 with next 5 issues | ✅ |
+| SEARCH-08 | has_more: true when more pages available | ✅ |
+| SEARCH-09 | current_page matches requested start_page | ✅ |
+| SEARCH-10 | total_count accurately reflects total matching issues | ✅ |
+| SEARCH-11 | Empty result with total_count: 0 and has_more: false | ✅ |
+| SEARCH-12 | Fail with specific syntax error for invalid JQL | ✅ |
+| SEARCH-13 | Fail with authentication error | ✅ |
+| SEARCH-14 | Fail with timeout error for network timeout | ✅ |
+| SEARCH-15 | Field selection returns only specified fields | ✅ |
 
 ## GET_ISSUE - Issue Retrieval
 
