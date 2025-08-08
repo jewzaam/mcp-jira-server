@@ -87,6 +87,21 @@ This document maps 1:1 to unit tests in the codebase based on the requirements i
 | FIELD_META-09 | Fail with "Project not found" error for non-existent project | |
 | FIELD_META-10 | Fail with "Sample issue not found" error for non-existent sample | |
 | FIELD_META-11 | Fail with permission error for insufficient editmeta access | |
+| FIELD_META-12 | Cache-only lookup with issue_type parameter returns cached metadata | |
+| FIELD_META-13 | Cache-only lookup fails when no cached data exists for issue_type | |
+| FIELD_META-14 | Fail when both sample_issue and issue_type are provided | |
+| FIELD_META-15 | Fail when neither sample_issue nor issue_type are provided | |
+| FIELD_META-16 | No JIRA API calls made when using issue_type parameter | |
+
+## GET_KNOWN_PARENT_FIELDS - All Known Parent Fields Lookup
+
+| Test ID | Description | Validated |
+|---------|-------------|-----------|
+| KNOWN_PARENT_FIELDS-01 | Return all unique parent field IDs across all cached projects/issue types | |
+| KNOWN_PARENT_FIELDS-02 | Return empty array when no cached field metadata exists | |
+| KNOWN_PARENT_FIELDS-03 | Return only field IDs where used_for_parent_key is true | |
+| KNOWN_PARENT_FIELDS-04 | Deduplicate field IDs across multiple project::issue_type combinations | |
+| KNOWN_PARENT_FIELDS-05 | No JIRA API calls are made (cache-only operation) | |
 
 ## GET_CHILDREN - Immediate Child Discovery
 

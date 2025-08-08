@@ -12,7 +12,7 @@ import pytest
 import os
 import tempfile
 import yaml
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from pathlib import Path
 
 from .test_common import (
@@ -123,15 +123,19 @@ class TestConfigDomain:
             yaml.dump(self.valid_config, f)
 
         # Act & Assert - This is the TDD part - following proper separation of concerns
-        with patch('mcp_jira_server.config.make_jira_request') as mock_jira_request:
+        with patch('mcp_jira_server.get_field_metadata.make_jira_request') as mock_jira_request:
             # Mock successful field metadata discovery for both projects
             # Need different responses for editmeta and issue type calls
-            mock_jira_request.side_effect = [
-                create_mock_jira_response(200, SAMPLE_EDITMETA_RESPONSE),  # editmeta for PROJ-123
-                create_mock_jira_response(200, SAMPLE_ISSUE_TYPE_RESPONSE),  # issue type for PROJ-123
-                create_mock_jira_response(200, SAMPLE_EDITMETA_RESPONSE),  # editmeta for TEST-456
-                create_mock_jira_response(200, SAMPLE_ISSUE_TYPE_RESPONSE),  # issue type for TEST-456
-            ]
+            def mock_request_side_effect(path, params=None):
+                response_mock = MagicMock()
+                response_mock.status_code = 200
+                if "editmeta" in path:
+                    response_mock.json.return_value = SAMPLE_EDITMETA_RESPONSE
+                else:  # issue details call
+                    response_mock.json.return_value = SAMPLE_ISSUE_TYPE_RESPONSE
+                return response_mock
+            
+            mock_jira_request.side_effect = mock_request_side_effect
 
             # 1. Load config
             from mcp_jira_server.config import load_config
@@ -180,14 +184,24 @@ class TestConfigDomain:
             yaml.dump(config_with_invalid_sample, f)
 
         # Act & Assert - This is the TDD part - testing warning behavior with proper separation
-        with patch('mcp_jira_server.config.make_jira_request') as mock_jira_request:
+        with patch('mcp_jira_server.get_field_metadata.make_jira_request') as mock_jira_request:
             # First call (PROJ-123) succeeds, second call (TEST-99999999) fails
-            mock_jira_request.side_effect = [
-                create_mock_jira_response(200, SAMPLE_EDITMETA_RESPONSE),  # editmeta for PROJ-123
-                create_mock_jira_response(200, SAMPLE_ISSUE_TYPE_RESPONSE),  # issue type for PROJ-123
-                create_mock_jira_response(404, error_messages=["Issue does not exist"]),  # editmeta for TEST-99999999
-                create_mock_jira_response(404, error_messages=["Issue does not exist"])   # issue type for TEST-99999999
-            ]
+            def mock_request_side_effect(path, params=None):
+                response_mock = MagicMock()
+                if "PROJ-123" in path:
+                    # Success for PROJ-123
+                    response_mock.status_code = 200
+                    if "editmeta" in path:
+                        response_mock.json.return_value = SAMPLE_EDITMETA_RESPONSE
+                    else:  # issue details call
+                        response_mock.json.return_value = SAMPLE_ISSUE_TYPE_RESPONSE
+                elif "TEST-99999999" in path:
+                    # 404 for TEST-99999999
+                    response_mock.status_code = 404
+                    response_mock.json.return_value = {"errorMessages": ["Issue does not exist"]}
+                return response_mock
+            
+            mock_jira_request.side_effect = mock_request_side_effect
 
             # 1. Load config
             from mcp_jira_server.config import load_config
@@ -516,7 +530,7 @@ class TestConfigDomain:
             yaml.dump(self.valid_config, f)
 
         from requests.exceptions import RequestException
-        with patch('mcp_jira_server.config.make_jira_request') as mock_jira_request:
+        with patch('mcp_jira_server.get_field_metadata.make_jira_request') as mock_jira_request:
             # Mock RequestException (non-critical error that should be logged and continue)
             mock_jira_request.side_effect = RequestException("Network error")
 
@@ -600,7 +614,7 @@ class TestConfigDomain:
         from mcp_jira_server.config import load_config
         load_config(str(self.config_file))
         
-        with patch('mcp_jira_server.config.make_jira_request') as mock_jira_request:
+        with patch('mcp_jira_server.get_field_metadata.make_jira_request') as mock_jira_request:
             # Mock 404 response for editmeta (should warn and continue)
             mock_404_response = create_mock_jira_response(404)
             # Mock 500 error for editmeta (should warn and continue)

@@ -212,30 +212,59 @@ interface PagedResult<T> {
 - Issue exists but user lacks permission → fail with permission error
 - Invalid issue key format → fail with format validation error
 
-#### get_field_metadata(project_key: string, sample_issue?: string) -> FieldMetadata[]
+#### get_field_metadata(project_key: string, sample_issue?: string, issue_type?: string) -> FieldMetadata[]
 
 **Purpose:** Retrieve available field metadata for a project and identify parent relationship fields.
 
 **Behavior:**
-- Use `editmeta` API on sample issue to discover available fields
-- If no sample_issue provided, use pre-cached metadata from configuration OR fail if no cached data exists
+- **Parameter Usage (choose one approach):**
+  - **Preferred:** Provide `sample_issue` - uses `editmeta` API to discover available fields, determines issue type automatically, caches results
+  - **Alternative:** Provide `issue_type` - cache-only lookup, no API calls, fails fast on cache miss
+  - **Invalid:** Cannot provide both `sample_issue` and `issue_type` parameters
 - Return field metadata including which fields are used for `parent_key` derivation
 - Mark fields with names matching `.*Link` pattern as `used_for_parent_key: true`
-- Cache discovered metadata for future use using simple in-memory 
+- Cache discovered metadata for future use using simple in-memory storage
+
+**LLM Usage Guidance:**
+- **When you know an issue key:** Use `get_field_metadata("PROJ", "PROJ-123")` - this will discover and cache field metadata
+- **When you know project + issue type and want fast cache-only lookup:** Use `get_field_metadata("PROJ", null, "Story")` - fails if not cached
+- **Invalid query:** `get_field_metadata("PROJ")` will fail, must supply one of `sample_issue` or `issue_type`
 
 **Success Criteria:**
-- `get_field_metadata("RFE")` returns cached metadata for RFE project
-- `get_field_metadata("ANSTRAT", "ANSTRAT-1454")` discovers and caches metadata using sample issue
-    - NOTE to test this, first verify `get_field_metadataa("ANSTRAT")` fails because it is not cached.
-    - NOTE test with a project that is not pre-cached
+- `get_field_metadata("RFE", "RFE-1")` discovers and caches metadata using sample issue
+- `get_field_metadata("RFE", null, "Feature Request")` returns cached metadata for RFE Feature Request (cache-only)
+- `get_field_metadata("RFE", "RFE-1", "Feature Request")` fails
+- `get_field_metadata("RFE")` fails
 - Fields like "Epic Link", "Parent Link", "Feature Link" have `used_for_parent_key: true`
 - Non-link fields have `used_for_parent_key: false`
 - Metadata includes field type, description, and requirement status
 
 **Error Conditions:**
-- Project key doesn't exist → fail with "Project not found" error
+- Both `sample_issue` and `issue_type` provided → fail with parameter validation error
+- Project key doesn't exist (with sample_issue) → fail with "Project not found" error
 - Sample issue doesn't exist → fail with "Sample issue not found" error
 - Insufficient permissions for editmeta → fail with permission error
+- No cached data exists (with issue_type or no parameters) → fail with cache miss error
+
+#### get_known_parent_fields() -> string[]
+
+**Purpose:** Get list of all known parent fields across all cached projects and issue types for dynamic parent field resolution.
+
+**Behavior:**
+- Cache-only lookup - no JIRA API calls performed
+- Return all unique fields where `used_for_parent_key: true` from entire cache
+- Convenience function for ancestor/hierarchy queries where issue types are unknown
+- Optimized for use in `get_ancestors` and other hierarchy traversal operations
+- When querying single issue type (like `get_children`), use `get_field_metadata` with `issue_type` parameter instead
+
+**Success Criteria:**
+- `get_known_parent_fields()` returns `["customfield_12313140", "customfield_12311140", "customfield_12345678"]` 
+- Returns deduplicated fields across all cached project::issue_type combinations
+- Only returns fields, not full metadata objects
+- No JIRA API calls are made
+
+**Error Conditions:**
+- No cached field metadata exists anywhere → returns empty array (graceful degradation)
 
 ### F2: Issue Relationship Discovery
 

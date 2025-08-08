@@ -198,10 +198,10 @@ def get_auth_headers() -> Dict[str, str]:
 
 # Cache management functions
 def initialize_cache() -> None:
-    """Initialize field metadata cache by calling JIRA APIs for configured projects.
+    """Initialize field metadata cache by calling get_field_metadata for configured projects.
 
-    This is a side effect function that populates the internal cache by calling
-    the JIRA editmeta API for each project's sample issue. Uses the loaded
+    This is a side effect function that populates the internal cache by using
+    get_field_metadata for each project's sample issue. Uses the loaded
     configuration from module memory.
 
     Raises:
@@ -224,65 +224,33 @@ def initialize_cache() -> None:
     cache_config = jira_config.get('field_metadata_cache', {})
     projects = cache_config.get('projects', [])
 
+    # Import here to avoid circular imports
+    from mcp_jira_server.get_field_metadata import get_field_metadata, SampleIssueNotFoundError, ProjectNotFoundError
+
     for project_config in projects:
         project_key = project_config['project_key']
         sample_issue = project_config['sample_issue']
 
         try:
-            # Call editmeta API for this sample issue to discover field metadata
-            response = make_jira_request(f"rest/api/2/issue/{sample_issue}/editmeta")
+            # Use consolidated get_field_metadata function
+            # This will discover via editmeta API and cache the results automatically
+            field_metadata = get_field_metadata(project_key, sample_issue=sample_issue)
 
-            if response.status_code == 404:
-                warnings.warn(f"Sample issue {sample_issue} not found", UserWarning)
-                logger.warning(f"Sample issue {sample_issue} not found, skipping cache for {project_key}")
-                continue
-            elif response.status_code != 200:
-                logger.warning(f"Failed to fetch editmeta for {sample_issue}: HTTP {response.status_code}")
-                continue
+            # Count parent fields for logging
+            parent_field_count = sum(1 for field in field_metadata if field.used_for_parent_key)
+            logger.debug(f"Cached {parent_field_count} parent fields for {project_key} via {sample_issue}")
 
-            editmeta_data = response.json()
-            fields = editmeta_data.get('fields', {})
-
-            # Get the issue details to determine the issue type
-            issue_response = make_jira_request(
-                f"rest/api/2/issue/{sample_issue}",
-                params={"fields": "issuetype"}
-            )
-
-            if issue_response.status_code != 200:
-                logger.warning(f"Failed to get issue type for {sample_issue}")
-                continue
-
-            issue_data = issue_response.json()
-            issue_type = issue_data.get('fields', {}).get('issuetype', {}).get('name', 'Unknown')
-
-            # Extract parent-type fields (Epic Link and Parent Link) as field metadata
-            parent_field_metadata = []
-            for field_id, field_info in fields.items():
-                schema = field_info.get('schema', {})
-                custom_type = schema.get('custom', '')
-
-                # Identify parent-type fields by their schema custom type
-                if custom_type in [
-                    'com.pyxis.greenhopper.jira:gh-epic-link',                           # Epic Link fields
-                    'com.atlassian.jira.plugin.system.customfieldtypes:issuelinks'     # Parent Link fields
-                ]:
-                    parent_field_metadata.append({
-                        'id': field_id,
-                        'name': field_info.get('name', 'Unknown'),
-                        'schema': schema
-                    })
-                    logger.debug(f"Found parent field {field_id} ({field_info.get('name', 'Unknown')}) for {project_key}::{issue_type}")
-
-            # Cache by project::issue_type (standard pattern from old code)
-            cache_key = f"{project_key}::{issue_type}"
-            _field_cache[cache_key] = parent_field_metadata  # Store metadata objects, not just IDs
-            logger.debug(f"Cached {len(parent_field_metadata)} parent fields for {cache_key}")
-
+        except SampleIssueNotFoundError:
+            warnings.warn(f"Sample issue {sample_issue} not found", UserWarning)
+            logger.warning(f"Sample issue {sample_issue} not found, skipping cache for {project_key}")
+            continue
+        except ProjectNotFoundError:
+            logger.warning(f"Project {project_key} not found, skipping cache")
+            continue
         except (ConnectionError, AuthenticationError):
             # These are critical errors that should stop initialization
             raise
-        except RequestException as e:
+        except Exception as e:
             logger.warning(f"Failed to fetch field metadata for {sample_issue}: {e}")
             continue
 

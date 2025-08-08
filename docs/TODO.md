@@ -1,0 +1,4 @@
+- capture default "fields" in configuration instead of hard coding
+- update get_issue to use get_known_parent_fields() for dynamic parent field discovery instead of hardcoded customfield IDs
+- consider a pseudo-field for parent keys, thereby eliminating get_known_parent_fields as an MCP tool
+- initalize_cache should use get_field_metadata with project and issue_type arguments
