@@ -12,7 +12,7 @@ import asyncio
 # Import modules under test  
 from mcp_jira_server.server import (
     JiraTools, IssueSummary, IssueDetails, IssueRelationships, 
-    IssueLink, DescendantTree, ParentInfo, AncestorTree
+    IssueLink, ParentInfo, AncestorTree
 )
 
 
@@ -259,78 +259,6 @@ class TestTools(unittest.TestCase):
         self.assertEqual(outward_link.link_type, "Relates")
         self.assertEqual(outward_link.relationship, "relates to")
 
-    def test_tools_15_get_descendants_basic_functionality(self):
-        """TOOLS-15: Get descendants basic functionality."""
-        self.mock_client.get_descendants.return_value = {
-            "TEST-CHILD1": {
-                "key": "TEST-CHILD1",
-                "fields": {"summary": "Child 1", "status": {"name": "Open"}}
-            },
-            "TEST-CHILD2": {
-                "key": "TEST-CHILD2", 
-                "fields": {"summary": "Child 2", "status": {"name": "Done"}}
-            },
-            "_extraction_metadata": {
-                "traversal_order": [
-                    {"issue_key": "TEST-PARENT", "depth": 0},
-                    {"issue_key": "TEST-CHILD1", "depth": 1},
-                    {"issue_key": "TEST-CHILD2", "depth": 1}
-                ]
-            }
-        }
-        
-        result = asyncio.run(self.tools.get_descendants("TEST-PARENT", max_depth=2))
-        
-        self.assertIsInstance(result, DescendantTree)
-        self.assertEqual(result.root_issue, "TEST-PARENT")
-        self.assertEqual(result.max_depth, 2)
-        self.assertEqual(result.total_issues, 2)
-        self.assertEqual(len(result.issues), 2)
-        self.assertEqual(len(result.traversal_order), 3)
-
-    def test_tools_16_get_descendants_excludes_root_issue(self):
-        """TOOLS-16: Get descendants excludes root issue from results."""
-        self.mock_client.get_descendants.return_value = {
-            "TEST-ROOT": {
-                "key": "TEST-ROOT",
-                "fields": {"summary": "Root", "status": {"name": "Open"}}
-            },
-            "TEST-CHILD": {
-                "key": "TEST-CHILD",
-                "fields": {"summary": "Child", "status": {"name": "Open"}}
-            },
-            "_extraction_metadata": {"traversal_order": []}
-        }
-        
-        result = asyncio.run(self.tools.get_descendants("TEST-ROOT"))
-        
-        # Root issue should not be in the issues list
-        self.assertEqual(len(result.issues), 1)
-        self.assertEqual(result.issues[0].key, "TEST-CHILD")
-
-    def test_tools_17_get_descendants_with_parameters(self):
-        """TOOLS-17: Get descendants with custom parameters."""
-        self.mock_client.get_descendants.return_value = {
-            "_extraction_metadata": {"traversal_order": []}
-        }
-        
-        asyncio.run(self.tools.get_descendants(
-            "TEST-PARAM",
-            max_depth=5,
-            include_subtasks=False,
-            include_links=True,
-            include_parent_links=True
-        ))
-        
-        self.mock_client.get_descendants.assert_called_once_with(
-            issue_key="TEST-PARAM",
-            depth=5,
-            include_subtasks=False,
-            include_links=True,
-            include_remote_links=False,  # Always False for descendants
-            include_parent_links=True
-        )
-
     def test_tools_18_get_children_with_subtasks_only(self):
         """TOOLS-18: Get children with subtasks only."""
         self.mock_client.get_issue.return_value = {
@@ -349,12 +277,40 @@ class TestTools(unittest.TestCase):
             }
         }
         
-        result = asyncio.run(self.tools.get_children("TEST-PARENT"))
+        result = asyncio.run(self.tools.get_children("TEST-PARENT", include_parent_links=False))
         
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0].key, "TEST-SUB1")
         self.assertEqual(result[1].key, "TEST-SUB2")
         self.assertIsInstance(result[0], IssueSummary)
+
+    def test_tools_18b_get_children_default_behavior(self):
+        """TOOLS-18B: Get children with default behavior (includes both subtasks and parent links)."""
+        self.mock_client.get_issue.side_effect = [
+            # First call for getting subtasks
+            {
+                "key": "TEST-PARENT",
+                "fields": {
+                    "subtasks": [
+                        {
+                            "key": "TEST-SUB1",
+                            "fields": {"summary": "Subtask 1", "status": {"name": "Open"}}
+                        }
+                    ]
+                }
+            },
+            # Second call for parent-link child
+            {"key": "TEST-PCHILD1", "fields": {"summary": "Parent Child 1", "status": {"name": "Open"}}}
+        ]
+        self.mock_client.get_parent_link_children.return_value = ["TEST-PCHILD1"]
+        
+        result = asyncio.run(self.tools.get_children("TEST-PARENT"))
+        
+        # Should get both subtasks and parent-link children
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0].key, "TEST-SUB1")
+        self.assertEqual(result[1].key, "TEST-PCHILD1")
+        self.mock_client.get_parent_link_children.assert_called_once_with("TEST-PARENT", "Parent Link")
 
     def test_tools_19_get_children_with_parent_links(self):
         """TOOLS-19: Get children with parent links enabled."""
