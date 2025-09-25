@@ -240,19 +240,6 @@ class IssueRelationships(BaseModel):
     }
 
 
-class DescendantTree(BaseModel):
-    """Tree structure of issue descendants."""
-    
-    root_issue: str = Field(..., title="Root issue key")
-    max_depth: int = Field(..., title="Maximum traversal depth")
-    total_issues: int = Field(..., title="Total number of issues found")
-    issues: List[IssueSummary] = Field(..., title="All descendant issues")
-    traversal_order: List[Dict[str, Any]] = Field(..., title="Order issues were discovered")
-    
-    model_config = {
-        "title": "DescendantTree", 
-        "extra": "ignore",
-    }
 
 
 class ParentInfo(BaseModel):
@@ -477,84 +464,58 @@ class JiraTools:
             remote_links_count=remote_links_count
         )
 
-    async def get_descendants(self, issue_key: str, max_depth: int = 3, 
-                             include_subtasks: bool = True, include_links: bool = True,
-                             include_parent_links: bool = False) -> DescendantTree:
-        """Get all descendants of an issue using the existing JiraClient traversal logic."""
-        descendants_data = self._client.get_descendants(
-            issue_key=issue_key,
-            depth=max_depth,
-            include_subtasks=include_subtasks,
-            include_links=include_links,
-            include_remote_links=False,  # We don't need remote links for descendants
-            include_parent_links=include_parent_links
-        )
-        
-        # Extract metadata
-        metadata = descendants_data.pop("_extraction_metadata", {})
-        traversal_order = metadata.get("traversal_order", [])
-        
-        # Convert issue data to IssueSummary objects
-        issues = []
-        for key, issue_data in descendants_data.items():
-            if key == issue_key:  # Skip the root issue itself
-                continue
-                
-            fields = issue_data.get("fields", {})
-            issues.append(IssueSummary(
-                key=key,
-                summary=fields.get("summary", ""),
-                status=fields.get("status", {}).get("name", ""),
-                url=f"{self._client.base_url}/browse/{key}"
-            ))
-        
-        return DescendantTree(
-            root_issue=issue_key,
-            max_depth=max_depth,
-            total_issues=len(issues),
-            issues=issues,
-            traversal_order=traversal_order
-        )
 
-    async def get_children(self, issue_key: str, include_parent_links: bool = False,
+    async def get_children(self, issue_key: str, include_parent_links: bool = True,
                           parent_link_field: str = "Parent Link") -> List[IssueSummary]:
         """Get direct children of an issue (subtasks and optionally parent-link children)."""
         children = []
         
-        # Get the issue to extract subtasks
-        issue_data = self._client.get_issue(issue_key)
-        fields = issue_data.get("fields", {})
-        
-        # Add subtasks
-        subtasks = fields.get("subtasks", [])
-        for subtask in subtasks:
-            subtask_key = subtask.get("key")
-            if subtask_key:
-                subtask_fields = subtask.get("fields", {})
-                children.append(IssueSummary(
-                    key=subtask_key,
-                    summary=subtask_fields.get("summary", ""),
-                    status=subtask_fields.get("status", {}).get("name", ""),
-                    url=f"{self._client.base_url}/browse/{subtask_key}"
-                ))
-        
-        # Add parent-link children if requested
-        if include_parent_links:
-            parent_link_children = self._client.get_parent_link_children(issue_key, parent_link_field)
-            for child_key in parent_link_children:
-                # Fetch details for each child
-                try:
-                    child_data = self._client.get_issue(child_key)
-                    child_fields = child_data.get("fields", {})
+        try:
+            # Get the issue to extract subtasks
+            issue_data = self._client.get_issue(issue_key)
+            fields = issue_data.get("fields", {})
+            
+            # Add subtasks (these are always included as they're standard JIRA relationships)
+            subtasks = fields.get("subtasks", [])
+            for subtask in subtasks:
+                subtask_key = subtask.get("key")
+                if subtask_key:
+                    subtask_fields = subtask.get("fields", {})
                     children.append(IssueSummary(
-                        key=child_key,
-                        summary=child_fields.get("summary", ""),
-                        status=child_fields.get("status", {}).get("name", ""),
-                        url=f"{self._client.base_url}/browse/{child_key}"
+                        key=subtask_key,
+                        summary=subtask_fields.get("summary", ""),
+                        status=subtask_fields.get("status", {}).get("name", ""),
+                        url=f"{self._client.base_url}/browse/{subtask_key}"
                     ))
+            
+            # Add parent-link children if requested
+            if include_parent_links:
+                try:
+                    parent_link_children = self._client.get_parent_link_children(issue_key, parent_link_field)
+                    self._logger.debug(f"Found {len(parent_link_children)} parent-link children for {issue_key}")
+                    
+                    for child_key in parent_link_children:
+                        # Fetch details for each child
+                        try:
+                            child_data = self._client.get_issue(child_key)
+                            child_fields = child_data.get("fields", {})
+                            children.append(IssueSummary(
+                                key=child_key,
+                                summary=child_fields.get("summary", ""),
+                                status=child_fields.get("status", {}).get("name", ""),
+                                url=f"{self._client.base_url}/browse/{child_key}"
+                            ))
+                        except Exception as e:
+                            self._logger.warning(f"Could not fetch details for parent-link child {child_key}: {e}")
+                            continue
+                            
                 except Exception as e:
-                    self._logger.warning(f"Could not fetch details for parent-link child {child_key}: {e}")
-                    continue
+                    self._logger.warning(f"Could not search for parent-link children using field '{parent_link_field}': {e}")
+                    # Continue without parent-link children rather than failing completely
+        
+        except Exception as e:
+            self._logger.error(f"Failed to get children for issue {issue_key}: {e}")
+            raise
         
         return children
 
@@ -848,40 +809,14 @@ def create_server(
     async def get_issue_relationships_tool(issue_key: str) -> IssueRelationships:
         return await tools.get_issue_relationships(issue_key)
 
-    @mcp.tool(
-        name="get_descendants",
-        description=(
-            "Traverse DOWN the issue hierarchy to find all child issues, grandchildren, etc. "
-            "Follows subtask relationships and issue links (blocks/depends) to build a complete "
-            "descendant tree. Use for impact analysis: 'What work depends on this issue?' "
-            "Default depth=3 levels for performance. Use max_depth=-1 for unlimited traversal "
-            "(caution: can be slow on large hierarchies). Complements get_ancestors()."
-        ),
-        annotations=ToolAnnotations(
-            readOnlyHint=True,
-            destructiveHint=False,
-            idempotentHint=True,
-            openWorldHint=False,
-        ),
-    )
-    async def get_descendants_tool(
-        issue_key: str, 
-        max_depth: int = 3,
-        include_subtasks: bool = True,
-        include_links: bool = True,
-        include_parent_links: bool = False
-    ) -> DescendantTree:
-        return await tools.get_descendants(
-            issue_key, max_depth, include_subtasks, include_links, include_parent_links
-        )
 
     @mcp.tool(
         name="get_children",
         description=(
-            "Get immediate children only (1 level down) - subtasks and optionally custom "
-            "parent-link field children. Use this instead of get_descendants() when you only "
-            "need direct children, not the full hierarchy. Faster and more focused than "
-            "get_descendants() with max_depth=1. Commonly used for Epic→Story or Story→Task relationships."
+            "Get immediate children only (1 level down) - includes both standard JIRA subtasks "
+            "and custom parent-link field children by default. Use this to find direct child issues "
+            "without traversing the full hierarchy. Commonly used for Epic→Story or Story→Task relationships. "
+            "Set include_parent_links=False to only get standard subtasks."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
@@ -892,7 +827,7 @@ def create_server(
     )
     async def get_children_tool(
         issue_key: str,
-        include_parent_links: bool = False,
+        include_parent_links: bool = True,
         parent_link_field: str = "Parent Link"
     ) -> List[IssueSummary]:
         return await tools.get_children(issue_key, include_parent_links, parent_link_field)
@@ -944,7 +879,7 @@ def create_server(
             "Follows parent relationships to the root of the hierarchy. Use for understanding "
             "the full context: 'What Epic/Initiative does this task belong to?' "
             "Default depth=5 levels (ancestors are usually linear chains). Use max_depth=-1 "
-            "for unlimited traversal. Complements get_descendants() for full hierarchy view."
+            "for unlimited traversal."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=True,

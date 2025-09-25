@@ -97,21 +97,21 @@ class TestServer(unittest.TestCase):
 
     @patch("mcp_jira_server.server.JiraClient")
     @patch("mcp_jira_server.server.FastMCP")
-    def test_server_06_server_registers_all_nine_tools(self, mock_fastmcp, mock_client):
-        """SERVER-06: Server registers all nine tools."""
+    def test_server_06_server_registers_all_eight_tools(self, mock_fastmcp, mock_client):
+        """SERVER-06: Server registers all eight tools."""
         mock_server = Mock()
         mock_fastmcp.return_value = mock_server
         
         create_server(url="https://test.jira.com")
         
-        # Check that tool decorator was called 9 times
-        self.assertEqual(mock_server.tool.call_count, 9)
+        # Check that tool decorator was called 8 times
+        self.assertEqual(mock_server.tool.call_count, 8)
         
         # Check tool names
         tool_names = [call[1]["name"] for call in mock_server.tool.call_args_list]
         expected_names = [
             "search_issues", "get_issue", "identifier_hint",
-            "get_issue_relationships", "get_descendants", "get_children", "get_linked_issues",
+            "get_issue_relationships", "get_children", "get_linked_issues",
             "get_parent", "get_ancestors"
         ]
         for name in expected_names:

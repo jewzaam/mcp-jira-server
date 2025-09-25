@@ -174,8 +174,13 @@ class JiraClient:
         Raises:
             Exception: If API request fails
         """
+        if not issue_key or not parent_link_field:
+            logging.warning("Invalid parameters for get_parent_link_children")
+            return []
+            
         url = urljoin(self.api_base, 'search')
         # Search using JQL for issues where the parent link field equals the given issue key
+        # Escape the field name and issue key to handle special characters
         jql = f'"{parent_link_field}" = "{issue_key}"'
         params = {
             'jql': jql,
