@@ -1,6 +1,4 @@
 # flake8: noqa: E501
-from __future__ import annotations
-
 """MCP JIRA Server
 
 A read-only Model Context Protocol server that provides tools for:
