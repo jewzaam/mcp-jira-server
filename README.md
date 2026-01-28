@@ -23,6 +23,17 @@ A read-only Model Context Protocol (MCP) server that provides AI assistants with
 
 ### Installation
 
+Choose the installation method based on your environment:
+
+- **Claude Code (CLI)**: `make install-claude`
+- **Cursor IDE**: `make install-cursor`
+
+See [MCP Client Integration](#mcp-client-integration) below for detailed installation instructions.
+
+**Manual Setup:**
+
+If you prefer to set up manually:
+
 1. Clone this repository:
    ```bash
    git clone https://github.com/jewzaam/mcp-jira-server.git
@@ -125,24 +136,54 @@ Options:
 
 ### MCP Client Integration
 
-#### Claude Desktop
+#### Claude Code (CLI)
 
-Add the server to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+Claude Code is the CLI interface for Claude. Installation uses the built-in MCP management:
 
-```json
-{
-  "mcpServers": {
-    "jira": {
-      "command": "python",
-      "args": [
-        "/path/to/mcp-jira-server/mcp_jira_server/server.py",
-        "--config",
-        "/path/to/your/config.yaml"
-      ]
-    }
-  }
-}
+```bash
+make install-claude
 ```
+
+This will:
+1. Set up the Python virtual environment
+2. Install all dependencies
+3. Create a JIRA configuration file in `~/.claude/mcp_jira_server.yaml`
+4. Register the MCP server using `claude mcp add` command
+
+**After installation:**
+1. Edit `~/.claude/mcp_jira_server.yaml` to configure your JIRA credentials:
+   - **URL**: Your JIRA instance URL (e.g., `https://your-company.atlassian.net`)
+   - **Username**: Your JIRA username or email
+   - **Token**: Your JIRA API token (recommended - see [Creating an API Token](#creating-a-jira-api-token))
+
+2. Verify installation:
+   ```bash
+   claude mcp list
+   ```
+
+3. Start using JIRA tools in your Claude Code sessions
+
+**Manual Installation:**
+
+If you prefer manual setup:
+
+```bash
+# After running 'make setup' to create the virtual environment
+mkdir -p ~/.claude
+cp example_mcp_jira_server.yaml ~/.claude/mcp_jira_server.yaml
+chmod 600 ~/.claude/mcp_jira_server.yaml
+claude mcp add jira -- $(pwd)/venv/bin/python -m mcp_jira_server.server --config ~/.claude/mcp_jira_server.yaml
+```
+
+#### Cursor IDE
+
+For Cursor integration:
+
+```bash
+make install-cursor
+```
+
+This sets up the MCP server for Cursor's MCP extension.
 
 #### VS Code with MCP Extension
 
@@ -320,10 +361,12 @@ python -m py_compile mcp_jira_server/*.py
 ## Security Considerations
 
 - **API Tokens**: Always prefer API tokens over passwords for authentication
-- **Configuration Files**: Ensure configuration files with credentials have restricted permissions (`chmod 600`)
+- **Configuration Location**: The installation stores configuration files in `~/.claude/` (outside the project directory) to prevent accidental credential commits to version control
+- **File Permissions**: Configuration files are automatically set to `chmod 600` to restrict access
 - **Environment Variables**: Consider using environment variables for sensitive data
 - **HTTPS**: Always use HTTPS URLs for JIRA connections
 - **Read-Only**: The server only provides read access to JIRA data
+- **Gitignore**: The project's `.gitignore` includes `mcp_jira_server.yaml` to prevent accidental commits
 
 ## Troubleshooting
 
